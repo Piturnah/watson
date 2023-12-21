@@ -2,11 +2,9 @@
 
 diesel::table! {
     problems (id) {
-        id -> Integer,
+        id -> Int4,
         body -> Text,
-        soln -> Text,
-        source -> Nullable<Text>,
-        author -> Nullable<Text>,
-        soln_author -> Nullable<Text>,
+        author -> Nullable<Varchar>,
+        source -> Nullable<Varchar>,
     }
 }

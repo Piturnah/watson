@@ -1,6 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
   pkgs.mkShell {
     nativeBuildInputs = with pkgs.buildPackages; [
-      sqlite
+      postgresql
+      diesel-cli
     ];
   }
