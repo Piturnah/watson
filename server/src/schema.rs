@@ -20,6 +20,7 @@ diesel::table! {
         body -> Text,
         author -> Nullable<Varchar>,
         source -> Nullable<Varchar>,
+        solnlink -> Nullable<Varchar>,
     }
 }
 
