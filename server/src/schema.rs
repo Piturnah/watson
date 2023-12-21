@@ -46,10 +46,4 @@ diesel::joinable!(problem_topic -> topics (topic_id));
 diesel::joinable!(solutions -> problems (problem_id));
 diesel::joinable!(topics -> modules (module_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    modules,
-    problem_topic,
-    problems,
-    solutions,
-    topics,
-);
+diesel::allow_tables_to_appear_in_same_query!(modules, problem_topic, problems, solutions, topics,);

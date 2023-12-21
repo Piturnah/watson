@@ -1,15 +1,47 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { axios, displayTex } from "$lib";
   let body =
     "Find and classify the stationary points of the following function: $$f(x, y) = 2x^3 -6xy + 3y^2$$";
-  let soln = "";
+  //let soln = "";
+  let soln = `Find the stationary points
+  $$
+  \\begin{aligned}
+  f_x = 6x^2 - 6y&\\therefore f_x = 0 \\implies& x^2 = y \\\\
+  f_y = -6x + 6y&\\therefore f_y = 0 \\implies& x = y
+  \\end{aligned}
+  $$
+  Hence there are two stationary points, at $(0, 0)$ and $(1, 1)$. The Hessian matrix is given by:
+  $$
+  H = \\begin{pmatrix}
+  f_{xx} & f_{xy} \\\\ f_{yx} & f_{yy}
+  \\end{pmatrix}
+  = \\begin{pmatrix}
+  12x & -6 \\\\ -6 & 6
+  \\end{pmatrix}. \\\\
+  $$
+  At $(0, 0)$,
+  $$
+  \\text{det}(H) = \\begin{vmatrix}
+  0 & -6 \\\\ -6 & 6
+  \\end{vmatrix}
+  = -36 < 0,
+  $$
+  so $(0, 0)$ is a saddle point. At $(1, 1)$,
+  $$
+  \\text{det}(H) = \\begin{vmatrix}
+  12 & -6 \\\\ -6 & 6
+  \\end{vmatrix}
+  = 36 > 0.
+  $$
+  Further, det$(H_1) = 12 > 0$, so $(1,1)$ is a local minimum.`;
   let source = "";
   let author = "";
 
   let solnLink = "";
 
   let modules = [{ id: -1, title: "New module" }];
-  let topics = [{ id: -1, title: "New topic" }];
+  let topics = [];
   let selectedModule = -2;
   let selectedTopic = -2;
   let newModule = "";
@@ -17,6 +49,16 @@
 
   let errors = [];
   let waiting = false;
+
+  onMount(() => {
+    axios
+      .get("/modules")
+      .then(({ data }) => {
+        modules = [{ id: -1, title: "New module" }, ...data.modules];
+        topics = data.topics;
+      })
+      .catch((e) => console.warn(e));
+  });
 
   function handleFormSubmit() {
     if (waiting) return;
@@ -55,7 +97,7 @@
 <form class="flex flex-col items-center p-12">
   <div class="grid grid-cols-2 w-full gap-8">
     <div class="flex flex-col p-5 gap-4 border border-dust bg-coal">
-      <select name="module" bind:value={selectedModule} class="p-1 bg-midnight text-white">
+      <select name="module" bind:value={selectedModule} class="p-2 bg-midnight text-white">
         <option value={-2} disabled selected>Module</option>
         {#each modules as { id, title } (id)}
           <option value={id}>{title}</option>
@@ -65,27 +107,28 @@
         <input
           bind:value={newModule}
           placeholder="Module name"
-          class="p-1 bg-midnight text-white"
+          class="p-2 bg-midnight text-white"
         />
       {/if}
-      <select name="topic" bind:value={selectedTopic} class="p-1 bg-midnight text-white">
+      <select name="topic" bind:value={selectedTopic} class="p-2 bg-midnight text-white">
         <option value={-2} disabled selected>Topic</option>
-        {#each topics as { id, title } (id)}
+        <option value={-1}>New topic</option>
+        {#each topics.filter((topic) => topic.module_id === selectedModule) as { id, title } (id)}
           <option value={id}>{title}</option>
         {/each}
       </select>
       {#if selectedTopic === -1}
-        <input bind:value={newTopic} placeholder="Topic name" class="p-1 bg-midnight text-white" />
+        <input bind:value={newTopic} placeholder="Topic name" class="p-2 bg-midnight text-white" />
       {/if}
       <input
         bind:value={author}
         placeholder="Problem author"
-        class="border-black p-1 w-full bg-midnight text-white"
+        class="border-black p-2 w-full bg-midnight text-white"
       />
       <input
         bind:value={source}
         placeholder="Problem source (e.g. 2MVA Lecture Notes)"
-        class="p-1 w-full bg-midnight text-white"
+        class="p-2 w-full bg-midnight text-white"
       />
       <div>
         <label class="block text-white">Problem statement</label>
@@ -120,12 +163,15 @@
       {/if}
     </div>
   </div>
-  <button
-    on:click={handleFormSubmit}
-    class={`mt-5 py-2 px-8 rounded-sm ${
-      waiting ? "bg-gray-400 cursor-wait" : "bg-fern text-white"
-    }`}
-  >
-    Submit
-  </button>
+  <div class="flex mt-5 gap-5 w-full">
+    <button
+      on:click={handleFormSubmit}
+      class={`py-2 w-36 rounded-sm ${waiting ? "bg-gray-400 cursor-wait" : "bg-fern text-white"}`}
+    >
+      Submit
+    </button>
+    <a href="/" class="bg-coal text-white border border-dust py-2 w-36 rounded-sm text-center"
+      >Done</a
+    >
+  </div>
 </form>

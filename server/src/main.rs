@@ -15,7 +15,7 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
 use tower_http::cors::{Any, CorsLayer};
 
-use models::{NewProblem, Problem};
+use models::{Module, ModulesView, NewProblem, Problem, Topic};
 
 use crate::models::{AddModule, AddTopic, InsertModule};
 
@@ -42,8 +42,8 @@ async fn main() {
     ];
 
     let app = Router::new()
-        .route("/", get(|| async { "Hello, world!" }))
         .route("/problems/create", post(create_problem))
+        .route("/modules", get(get_modules))
         .layer(
             CorsLayer::new()
                 .allow_methods(Any)
@@ -56,6 +56,21 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
+async fn get_modules() -> Result<Json<ModulesView>, (StatusCode, String)> {
+    use schema::{modules, topics};
+    let mut conn = establish_connection();
+    let modules = modules::table
+        .select(Module::as_select())
+        .get_results(&mut conn)
+        .map_err(internal_error)?;
+    let topics = topics::table
+        .select(Topic::as_select())
+        .get_results(&mut conn)
+        .map_err(internal_error)?;
+
+    Ok(Json(ModulesView { modules, topics }))
+}
+
 async fn create_problem(
     Json(new_problem): Json<NewProblem>,
 ) -> Result<Json<Problem>, (StatusCode, String)> {
@@ -66,16 +81,16 @@ async fn create_problem(
         AddModule::New(title) => diesel::insert_into(modules::table)
             .values(InsertModule { title })
             .returning(modules::id)
-            .execute(&mut conn)
-            .map_err(internal_error)? as i32,
+            .get_result(&mut conn)
+            .map_err(internal_error)?
     };
     let topic_id = match new_problem.topic {
         AddTopic::Existing(id) => id,
         AddTopic::New(title) => diesel::insert_into(topics::table)
             .values((topics::module_id.eq(module_id), topics::title.eq(title)))
             .returning(topics::id)
-            .execute(&mut conn)
-            .map_err(internal_error)? as i32,
+            .get_result(&mut conn)
+            .map_err(internal_error)?
     };
 
     let result = diesel::insert_into(problems::table)

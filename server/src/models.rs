@@ -1,7 +1,7 @@
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{modules, problems};
+use crate::schema::{modules, problems, topics};
 
 #[derive(Queryable, Selectable, Serialize)]
 #[diesel(table_name = problems)]
@@ -48,5 +48,27 @@ pub struct InsertProblem {
 #[derive(Insertable)]
 #[diesel(table_name = modules)]
 pub struct InsertModule {
+    pub title: String,
+}
+
+#[derive(Queryable, Selectable, Identifiable, Serialize, Hash, Eq, PartialEq, Debug)]
+#[diesel(table_name = modules)]
+pub struct Module {
+    pub id: i32,
+    pub title: String,
+}
+
+#[derive(Serialize)]
+pub struct ModulesView {
+    pub modules: Vec<Module>,
+    pub topics: Vec<Topic>,
+}
+
+#[derive(Queryable, Selectable, Identifiable, Associations, Serialize, Debug)]
+#[diesel(belongs_to(Module))]
+#[diesel(table_name = topics)]
+pub struct Topic {
+    pub id: i32,
+    pub module_id: i32,
     pub title: String,
 }
