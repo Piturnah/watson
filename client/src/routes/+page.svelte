@@ -38,8 +38,6 @@
   let showSoln = false;
 </script>
 
-<svelte:head></svelte:head>
-
 <p>
   {@html displayTex(problem)}
 </p>

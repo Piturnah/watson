@@ -155,20 +155,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "diesel-app"
-version = "0.1.0"
-dependencies = [
- "axum",
- "diesel",
- "diesel_migrations",
- "dotenvy",
- "serde",
- "tokio",
- "tower",
- "tower-http",
-]
-
-[[package]]
 name = "diesel_derives"
 version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -689,6 +675,20 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "diesel",
+ "diesel_migrations",
+ "dotenvy",
+ "serde",
+ "tokio",
+ "tower",
+ "tower-http",
 ]
 
 [[package]]
