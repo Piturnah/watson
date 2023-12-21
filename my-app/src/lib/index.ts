@@ -1,4 +1,7 @@
 import { math, display } from "mathlifier";
+import axiosLib from "axios";
+
+export const axios = axiosLib.create({ baseURL: "http://localhost:3000/" });
 
 enum TexString {
   Text,

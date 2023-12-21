@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { displayTex } from "$lib";
-  let problem =
+  import { axios, displayTex } from "$lib";
+  let body =
     "Find and classify the stationary points of the following function: $$f(x, y) = 2x^3 -6xy + 3y^2$$";
   let soln = `Find the stationary points
   $$
@@ -43,11 +43,11 @@
       <div class="w-full">
         <label class="block">Problem statement</label>
         <textarea
-          bind:value={problem}
+          bind:value={body}
           class="w-full border border-gray-300 rounded-sm text-sm h-32"
         />
         <p class="bg-white font-serif rounded-md p-3">
-          {@html displayTex(problem)}
+          {@html displayTex(body)}
         </p>
       </div>
 
@@ -77,7 +77,17 @@
           <input bind:value={author} placeholder={"Qianxi Wang"} class="p-1" />
         </div>
       </div>
-      <button type="submit" class="bottom-0 bg-green-400 rounded-md text-white py-1 px-5">
+      <button
+        on:click={() =>
+          axios
+            .post("/problems/create", {
+              body,
+            })
+            .then((res) => console.log(res))
+            .catch((e) => console.log(e))}
+        type="submit"
+        class="bottom-0 bg-green-400 rounded-md text-white py-1 px-5"
+      >
         Submit
       </button>
     </div>
