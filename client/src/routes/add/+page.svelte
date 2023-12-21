@@ -35,61 +35,67 @@
   Further, det$(H_1) = 12 > 0$, so $(1,1)$ is a local minimum.`;
   let source = "";
   let author = "";
+
+  let selectedModule = "";
+  let selectedTopic = "";
+  let solnLink = "";
+
+  let modules = [];
+  let topics = [];
 </script>
 
-<form class="mt-5">
-  <div class="bg-gray-200 p-8 mx-10 rounded-md">
-    <div class="flex justify-between gap-x-10">
-      <div class="w-full">
+<form class="flex flex-col items-center p-12">
+  <div class="grid grid-cols-2 w-full gap-8">
+    <div class="flex flex-col p-5 gap-4 border border-gray-400">
+      <select name="module" bind:value={selectedModule} class="border p-1">
+        <option value="" disabled selected>Module</option>
+        <option value="new">New module</option>
+      </select>
+      {#if selectedModule === "new"}
+        <input placeholder="Module name" class="border p-1 border-black" />
+      {/if}
+      <select name="topic" bind:value={selectedTopic} class="border p-1">
+        <option value="" disabled selected>Topic</option>
+        <option value="new">New topic</option>
+      </select>
+      {#if selectedTopic === "new"}
+        <input placeholder="Topic name" class="border p-1 border-black" />
+      {/if}
+      <input
+        bind:value={author}
+        placeholder="Problem author"
+        class="border border-black p-1 w-full"
+      />
+      <input
+        bind:value={source}
+        placeholder="Problem source (e.g. 2MVA Lecture Notes)"
+        class="border border-black p-1 w-full"
+      />
+      <div>
         <label class="block">Problem statement</label>
-        <textarea
-          bind:value={body}
-          class="w-full border border-gray-300 rounded-sm text-sm h-32"
-        />
-        <p class="bg-white font-serif rounded-md p-3">
-          {@html displayTex(body)}
-        </p>
+        <textarea bind:value={body} class="border border-black h-36 w-full p-1 font-mono" />
       </div>
-
-      <div class="w-full">
+      <div>
         <label class="block">Solution</label>
-        <textarea bind:value={soln} class="w-full border border-gray-300 rounded-sm text-sm h-32" />
-        <p class="bg-white font-serif rounded-md p-3">
+        <textarea bind:value={soln} class="border border-black h-56 w-full p-1 font-mono" />
+      </div>
+      {#if soln === ""}
+        <div>
+          <label class="block">Where can the solution be found? (e.g. URL or textbook)</label>
+          <input bind:value={solnLink} class="border border-black p-1 w-full" />
+        </div>
+      {/if}
+    </div>
+    <div class="bg-gray-400 p-6 border border-gray-500">
+      <p class="bg-white font-serif rounded-md p-3">
+        {@html displayTex(body)}
+      </p>
+      {#if soln !== ""}
+        <p class="bg-white font-serif rounded-md p-3 mt-6">
           {@html displayTex(soln)}
         </p>
-      </div>
-    </div>
-
-    <div class="flex justify-between">
-      <div class="flex flex-col gap-3 mt-3">
-        <div>
-          <label>Source</label>
-          <input bind:value={source} placeholder={"2MVA Lecture Notes"} class="p-1" />
-        </div>
-
-        <div>
-          <label>Author</label>
-          <input bind:value={author} placeholder={"Qianxi Wang"} class="p-1" />
-        </div>
-
-        <div>
-          <label>Solution author</label>
-          <input bind:value={author} placeholder={"Qianxi Wang"} class="p-1" />
-        </div>
-      </div>
-      <button
-        on:click={() =>
-          axios
-            .post("/problems/create", {
-              body,
-            })
-            .then((res) => console.log(res))
-            .catch((e) => console.log(e))}
-        type="submit"
-        class="bottom-0 bg-green-400 rounded-md text-white py-1 px-5"
-      >
-        Submit
-      </button>
+      {/if}
     </div>
   </div>
+  <button class="mt-5 bg-green-400 py-2 px-8 rounded-sm">Submit</button>
 </form>
