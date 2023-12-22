@@ -4,4 +4,6 @@ The dream being persued here is to have a great revision resource - a large numb
 
 ![image](https://github.com/Piturnah/BMPR/assets/20472367/474a1265-76a8-4d28-abec-21fe39d11bc7)
 
-The live server with the problem database is unfortunately private as I'm unsure of the legality of hosting the problems publically. If you are a maths student at UoB, get in touch.
+![image](https://github.com/Piturnah/BMPR/assets/20472367/4a93af9a-a331-408c-b3a0-8d5bf0e03382)
+
+![image](https://github.com/Piturnah/BMPR/assets/20472367/a6231960-6cf8-4396-b52d-ce2cf32bdb5c)
