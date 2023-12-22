@@ -9,6 +9,7 @@ export default {
       fern: "#238636",
       sky: "#2f81f7",
       dust: "#21262d",
+      red: "#da3633",
     },
     extend: {},
   },

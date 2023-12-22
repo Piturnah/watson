@@ -4,5 +4,6 @@
       nodejs_21
       nodePackages.prettier
       nodePackages.typescript-language-server
+      nodePackages_latest.svelte-language-server
     ];
   }

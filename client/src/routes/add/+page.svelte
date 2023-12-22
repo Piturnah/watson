@@ -1,53 +1,22 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { axios, displayTex } from "$lib";
-  let body =
-    "Find and classify the stationary points of the following function: $$f(x, y) = 2x^3 -6xy + 3y^2$$";
-  //let soln = "";
-  let soln = `Find the stationary points
-  $$
-  \\begin{aligned}
-  f_x = 6x^2 - 6y&\\therefore f_x = 0 \\implies& x^2 = y \\\\
-  f_y = -6x + 6y&\\therefore f_y = 0 \\implies& x = y
-  \\end{aligned}
-  $$
-  Hence there are two stationary points, at $(0, 0)$ and $(1, 1)$. The Hessian matrix is given by:
-  $$
-  H = \\begin{pmatrix}
-  f_{xx} & f_{xy} \\\\ f_{yx} & f_{yy}
-  \\end{pmatrix}
-  = \\begin{pmatrix}
-  12x & -6 \\\\ -6 & 6
-  \\end{pmatrix}. \\\\
-  $$
-  At $(0, 0)$,
-  $$
-  \\text{det}(H) = \\begin{vmatrix}
-  0 & -6 \\\\ -6 & 6
-  \\end{vmatrix}
-  = -36 < 0,
-  $$
-  so $(0, 0)$ is a saddle point. At $(1, 1)$,
-  $$
-  \\text{det}(H) = \\begin{vmatrix}
-  12 & -6 \\\\ -6 & 6
-  \\end{vmatrix}
-  = 36 > 0.
-  $$
-  Further, det$(H_1) = 12 > 0$, so $(1,1)$ is a local minimum.`;
+  import { axios, exampleProblem } from "$lib";
+  import TexBox from "$lib/TexBox.svelte";
+  import Box from "$lib/Box.svelte";
+  let { body, soln } = exampleProblem;
   let source = "";
   let author = "";
 
   let solnLink = "";
 
   let modules = [{ id: -1, title: "New module" }];
-  let topics = [];
+  let topics: { id: number; module_id: number; title: string }[] = [];
   let selectedModule = -2;
   let selectedTopic = -2;
   let newModule = "";
   let newTopic = "";
 
-  let errors = [];
+  let errors: string[] = [];
   let waiting = false;
 
   onMount(() => {
@@ -80,7 +49,7 @@
         module: selectedModule === -1 ? newModule : selectedModule,
         topic: selectedTopic === -1 ? newTopic : selectedTopic,
       })
-      .then((res) => {
+      .then(() => {
         body = "";
         soln = "";
         if (selectedModule === -1) selectedModule = -2;
@@ -152,35 +121,22 @@
         {/each}
       </div>
     </div>
-    <div class="bg-gray-400 p-6 border border-dust bg-coal">
-      <p class="bg-[#fff] font-serif rounded-md p-3 tex">
-        {@html displayTex(body)}
-      </p>
+    <Box>
+      <TexBox content={body} />
       {#if soln !== ""}
-        <p class="bg-[#fff] font-serif rounded-md p-3 mt-6 tex">
-          {@html displayTex(soln)}
-        </p>
+        <TexBox content={soln} />
       {/if}
-    </div>
+    </Box>
   </div>
   <div class="flex mt-5 gap-5 w-full">
     <button
       on:click={handleFormSubmit}
-      class={`py-2 w-36 rounded-sm ${waiting ? "bg-gray-400 cursor-wait" : "bg-fern text-white"}`}
+      class={`btn ${waiting ? "bg-gray-400 cursor-wait" : "btn-green"}`}
     >
       Submit
     </button>
-    <a href="/" class="bg-coal text-white border border-dust py-2 w-36 rounded-sm text-center"
-      >Done</a
-    >
+    <a href="/" class="btn btn-grey">
+      Back
+    </a>
   </div>
 </form>
-
-<style>
-.tex {
-  background-size: 24px 24px;
-  background-image:
-    linear-gradient(to right, #e2e2e2 1px, transparent 1px),
-    linear-gradient(to bottom, #e2e2e2 1px, transparent 1px);
-  background-position: 20px, 10px;
-}</style>

@@ -7,3 +7,19 @@ body {
   background-image: radial-gradient(circle, #353535 2px, rgba(0, 0, 0, 0) 1px);
   background-attachment: fixed;
 }
+
+.btn {
+    @apply py-2 w-36 rounded-sm text-center;
+}
+
+.btn-grey {
+    @apply bg-coal text-white border border-dust;
+}
+
+.btn-green {
+    @apply bg-fern text-[#fff];
+}
+
+.btn-red {
+    @apply bg-red text-white;
+}
