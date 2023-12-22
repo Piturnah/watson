@@ -153,11 +153,11 @@
       </div>
     </div>
     <div class="bg-gray-400 p-6 border border-dust bg-coal">
-      <p class="bg-[#fff] font-serif rounded-md p-3">
+      <p class="bg-[#fff] font-serif rounded-md p-3 tex">
         {@html displayTex(body)}
       </p>
       {#if soln !== ""}
-        <p class="bg-[#fff] font-serif rounded-md p-3 mt-6">
+        <p class="bg-[#fff] font-serif rounded-md p-3 mt-6 tex">
           {@html displayTex(soln)}
         </p>
       {/if}
@@ -175,3 +175,12 @@
     >
   </div>
 </form>
+
+<style>
+.tex {
+  background-size: 24px 24px;
+  background-image:
+    linear-gradient(to right, #e2e2e2 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e2e2 1px, transparent 1px);
+  background-position: 20px, 10px;
+}</style>
