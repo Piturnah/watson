@@ -3,5 +3,7 @@
     nativeBuildInputs = with pkgs.buildPackages; [
       postgresql
       diesel-cli
+      openssl
+      pkg-config
     ];
   }

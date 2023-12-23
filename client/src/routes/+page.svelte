@@ -1,49 +1,39 @@
 <script lang="ts">
-  import { afterUpdate } from "svelte";
-  import { displayTex } from "$lib";
+  import Box from "$lib/Box.svelte";
+  import { axios } from "$lib";
 
-  let problem =
-    "Find and classify the stationary points of the following function: $$f(x, y) = 2x^3 -6xy + 3y^2$$";
-  let soln = `Find the stationary points
-  $$
-  \\begin{aligned}
-  f_x = 6x^2 - 6y&\\therefore f_x = 0 \\implies& x^2 = y \\\\
-  f_y = -6x + 6y&\\therefore f_y = 0 \\implies& x = y
-  \\end{aligned}
-  $$
-  Hence there are two stationary points, at $(0, 0)$ and $(1, 1)$. The Hessian matrix is given by:
-  $$
-  H = \\begin{pmatrix}
-  f_{xx} & f_{xy} \\\\ f_{yx} & f_{yy}
-  \\end{pmatrix}
-  = \\begin{pmatrix}
-  12x & -6 \\\\ -6 & 6
-  \\end{pmatrix}. \\\\
-  $$
-  At $(0, 0)$,
-  $$
-  \\text{det}(H) = \\begin{vmatrix}
-  0 & -6 \\\\ -6 & 6
-  \\end{vmatrix}
-  = -36 < 0,
-  $$
-  so $(0, 0)$ is a saddle point. At $(1, 1)$,
-  $$
-  \\text{det}(H) = \\begin{vmatrix}
-  12 & -6 \\\\ -6 & 6
-  \\end{vmatrix}
-  = 36 > 0.
-  $$
-  Further, det$(H_1) = 12 > 0$, so $(1,1)$ is a local minimum.`;
-  let showSoln = false;
+  window.onSignIn = ({ credential }: { credential: string }) => {
+    loggingIn = true;
+    axios
+      .post("/login", { credential })
+      .then((res) => console.log(res))
+      .catch((e) => console.warn(e));
+  };
+
+  let loggingIn = false;
 </script>
 
-<p>
-  {@html displayTex(problem)}
-</p>
+<Box>
+  {#if !loggingIn}
+    <div
+      id="g_id_onload"
+      data-client_id="831067350519-i2ce97b0d7ru82eh3e394dg6j332nmi8.apps.googleusercontent.com"
+      data-context="signin"
+      data-ux_mode="popup"
+      data-callback="onSignIn"
+      data-itp_support="true"
+    ></div>
 
-<button on:click={() => (showSoln = !showSoln)}>{showSoln ? "Hide" : "Show"} solution</button>
-
-{#if showSoln}
-  <p>{@html displayTex(soln)}</p>
-{/if}
+    <div
+      class="g_id_signin"
+      data-type="standard"
+      data-shape="rectangular"
+      data-theme="outline"
+      data-text="signin_with"
+      data-size="large"
+      data-logo_alignment="left"
+    ></div>
+  {:else}
+    Signing you in...
+  {/if}
+</Box>
