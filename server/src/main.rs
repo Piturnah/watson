@@ -79,6 +79,7 @@ struct UserInfo {
 async fn login(
     Json(GoogleCredential { credential }): Json<GoogleCredential>,
 ) -> Result<Json<UserInfo>, (StatusCode, String)> {
+    // TODO: Caching.
     let google_jwks: GoogleJwkKeys = reqwest::get("https://www.googleapis.com/oauth2/v3/certs")
         .await
         .map_err(internal_error)?
