@@ -122,7 +122,9 @@
       </div>
     </div>
     <Box>
-      <TexBox content={body} />
+      {#if body !== ""}
+        <TexBox content={body} />
+      {/if}
       {#if soln !== ""}
         <TexBox content={soln} />
       {/if}
@@ -135,8 +137,6 @@
     >
       Submit
     </button>
-    <a href="/" class="btn btn-grey">
-      Back
-    </a>
+    <a href="/" class="btn btn-grey"> Back </a>
   </div>
 </form>
