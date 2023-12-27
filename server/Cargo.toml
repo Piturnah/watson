@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 axum = "0.7.2"
+base64 = "0.21.5"
+chrono = { version = "0.4.31", features = ["serde"] }
 diesel = { version = "2.1.0", features = ["postgres"] }
 diesel_migrations = "2.1.0"
 dotenvy = "0.15.7"

@@ -2,7 +2,7 @@ mod auth;
 mod models;
 mod schema;
 
-use std::{env, error::Error, net::SocketAddr};
+use std::{collections::HashMap, env, error::Error, net::SocketAddr, sync::Arc};
 
 use axum::{
     http::StatusCode,
@@ -16,6 +16,7 @@ use diesel::prelude::*;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
 use serde::Deserialize;
+use tokio::sync::RwLock;
 use tower_http::cors::{Any, CorsLayer};
 
 use models::{Module, ModulesView, NewProblem, Problem, Topic};
@@ -44,18 +45,24 @@ async fn main() {
         "http://localhost:4173".parse().unwrap(),
     ];
 
+    let sessions = Arc::new(RwLock::new(HashMap::new()));
+
     let app = Router::new()
         .route("/problems/create", post(create_problem))
         .route("/problems/request", get(request_problem))
         .route("/modules", get(get_modules))
-        .route_layer(middleware::from_fn(auth::auth))
+        .route_layer(middleware::from_fn_with_state(
+            Arc::clone(&sessions),
+            auth::auth,
+        ))
         .route("/login", post(auth::login))
         .layer(
             CorsLayer::new()
                 .allow_methods(Any)
                 .allow_headers(Any)
                 .allow_origin(origins),
-        );
+        )
+        .with_state(sessions);
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     println!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
