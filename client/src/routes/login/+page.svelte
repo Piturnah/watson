@@ -11,6 +11,7 @@
       .post("/login", { credential })
       .then(() => {
         localStorage.setItem("credential", credential);
+        axios.defaults.headers.common = { Authorization: `Bearer ${credential}` };
         goto(redirect === null ? "/" : redirect);
       })
       .catch((e) => console.warn(e));

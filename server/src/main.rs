@@ -1,3 +1,4 @@
+mod auth;
 mod models;
 mod schema;
 
@@ -5,6 +6,7 @@ use std::{env, error::Error, net::SocketAddr};
 
 use axum::{
     http::StatusCode,
+    middleware,
     response::Json,
     routing::{get, post},
     Router,
@@ -13,8 +15,7 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
-use jsonwebtoken::{jwk::Jwk, Algorithm, DecodingKey, Validation};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
 
 use models::{Module, ModulesView, NewProblem, Problem, Topic};
@@ -45,8 +46,10 @@ async fn main() {
 
     let app = Router::new()
         .route("/problems/create", post(create_problem))
+        .route("/problems/request", get(request_problem))
         .route("/modules", get(get_modules))
-        .route("/login", post(login))
+        .route_layer(middleware::from_fn(auth::auth))
+        .route("/login", post(auth::login))
         .layer(
             CorsLayer::new()
                 .allow_methods(Any)
@@ -57,51 +60,6 @@ async fn main() {
     println!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-#[derive(Deserialize, Debug)]
-struct GoogleCredential {
-    credential: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct GoogleJwkKeys {
-    keys: Vec<Jwk>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct UserInfo {
-    sub: String,
-    name: String,
-    email: String,
-}
-
-async fn login(
-    Json(GoogleCredential { credential }): Json<GoogleCredential>,
-) -> Result<Json<UserInfo>, (StatusCode, String)> {
-    // TODO: Caching.
-    let google_jwks: GoogleJwkKeys = reqwest::get("https://www.googleapis.com/oauth2/v3/certs")
-        .await
-        .map_err(internal_error)?
-        .json()
-        .await
-        .map_err(internal_error)?;
-    // XXX: For now [1] seems to work and [0] gives `InvalidSignature`. This may change in future
-    // in which case the solution will be to cycle through the keys until one of them works.
-    let jwk = &google_jwks.keys[1];
-    let mut validation = Validation::new(Algorithm::RS256);
-    validation
-        .set_audience(&[&env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID must be set")]);
-    validation.set_issuer(&["accounts.google.com", "https://accounts.google.com"]);
-    let result = jsonwebtoken::decode::<UserInfo>(
-        &credential,
-        &DecodingKey::from_jwk(jwk).map_err(internal_error)?,
-        &validation,
-    )
-    .map_err(internal_error)?
-    .claims;
-
-    Ok(Json(result))
 }
 
 async fn get_modules() -> Result<Json<ModulesView>, (StatusCode, String)> {
@@ -168,6 +126,17 @@ async fn create_problem(
     Ok(Json(result))
 }
 
-fn internal_error<E: Error>(error: E) -> (StatusCode, String) {
+#[derive(Deserialize, Debug)]
+struct ProblemRequest {
+    topic_ids: Vec<i32>,
+}
+
+async fn request_problem(
+    Json(request): Json<ProblemRequest>,
+) -> Result<Json<Problem>, (StatusCode, String)> {
+    todo!()
+}
+
+pub fn internal_error<E: Error>(error: E) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
 }
