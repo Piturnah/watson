@@ -94,21 +94,36 @@ struct SubmitSolution {
     body: String,
 }
 
-async fn submit_solution(Json(solution): Json<SubmitSolution>) -> Result<(), (StatusCode, String)> {
+async fn submit_solution(
+    headers: HeaderMap,
+    Json(solution): Json<SubmitSolution>,
+) -> Result<(), (StatusCode, String)> {
     use schema::solutions::*;
     let mut conn = establish_connection();
+    let user = headers
+        .get("user_sub")
+        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
+        .to_str()
+        .map_err(internal_error)?;
     diesel::insert_into(table)
-        .values(solution)
+        .values((solution, submitted_by.eq(user.to_string())))
         .execute(&mut conn)
         .map_err(internal_error)?;
     Ok(())
 }
 
 async fn create_problem(
+    headers: HeaderMap,
     Json(new_problem): Json<NewProblem>,
 ) -> Result<Json<Problem>, (StatusCode, String)> {
     use schema::{modules, problem_topic, problems, solutions, topics};
     let mut conn = establish_connection();
+    let user = headers
+        .get("user_sub")
+        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
+        .to_str()
+        .map_err(internal_error)?;
+
     let module_id = match new_problem.module {
         AddModule::Existing(id) => id,
         AddModule::New(title) => diesel::insert_into(modules::table)
@@ -127,7 +142,10 @@ async fn create_problem(
     };
 
     let result = diesel::insert_into(problems::table)
-        .values(&new_problem.problem)
+        .values((
+            &new_problem.problem,
+            problems::submitted_by.eq(user.to_string()),
+        ))
         .returning(Problem::as_returning())
         .get_result(&mut conn)
         .map_err(internal_error)?;
@@ -137,6 +155,7 @@ async fn create_problem(
             .values((
                 solutions::body.eq(soln),
                 solutions::problem_id.eq(result.id),
+                solutions::submitted_by.eq(user.to_string()),
             ))
             .execute(&mut conn)
             .map_err(internal_error)?;

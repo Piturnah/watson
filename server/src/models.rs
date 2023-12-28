@@ -13,6 +13,8 @@ pub struct Problem {
     pub author: Option<String>,
     pub source: Option<String>,
     pub solnlink: Option<String>,
+    pub submitted_at: NaiveDateTime,
+    pub submitted_by: Option<String>,
 }
 
 #[derive(
@@ -25,6 +27,8 @@ pub struct Solution {
     pub id: i32,
     pub problem_id: i32,
     pub body: String,
+    pub submitted_at: NaiveDateTime,
+    pub submitted_by: Option<String>,
 }
 
 #[derive(Identifiable, Queryable, Selectable, Associations, Debug)]

@@ -21,6 +21,8 @@ diesel::table! {
         author -> Nullable<Varchar>,
         source -> Nullable<Varchar>,
         solnlink -> Nullable<Varchar>,
+        submitted_at -> Timestamp,
+        submitted_by -> Nullable<Varchar>,
     }
 }
 
@@ -30,6 +32,8 @@ diesel::table! {
         problem_id -> Int4,
         body -> Text,
         author -> Nullable<Varchar>,
+        submitted_at -> Timestamp,
+        submitted_by -> Nullable<Varchar>,
     }
 }
 
@@ -60,7 +64,9 @@ diesel::table! {
 
 diesel::joinable!(problem_topic -> problems (problem_id));
 diesel::joinable!(problem_topic -> topics (topic_id));
+diesel::joinable!(problems -> users (submitted_by));
 diesel::joinable!(solutions -> problems (problem_id));
+diesel::joinable!(solutions -> users (submitted_by));
 diesel::joinable!(topics -> modules (module_id));
 diesel::joinable!(user_problem -> problems (problem_id));
 diesel::joinable!(user_problem -> users (user_id));
