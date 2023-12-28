@@ -10,7 +10,7 @@
     axios
       .post("/login", { credential })
       .then(() => {
-        localStorage.setItem("credential", credential);
+        sessionStorage.setItem("credential", credential);
         axios.defaults.headers["Authorization"] = `Bearer ${credential}`;
         goto(redirect === null ? "/" : redirect);
       })

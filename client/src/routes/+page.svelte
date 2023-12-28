@@ -2,9 +2,14 @@
   import { onMount } from "svelte";
   import Box from "$lib/Box.svelte";
   import { axios } from "$lib";
+  import { selected_topic_ids } from "$lib/stores";
+  import { get } from "svelte/store";
 
   let modules: { id: number; title: string }[] = [];
   let topics: { id: number; module_id: number; title: string }[] = [];
+
+  let moduleCheckboxes = {};
+  let topicCheckboxes = {};
   onMount(() => {
     axios
       .get("/modules")
@@ -15,8 +20,13 @@
       .catch((e) => console.warn(e));
   });
 
-  let moduleCheckboxes = {};
-  let topicCheckboxes = {};
+  $: {
+    let topics = [];
+    for (let [id, value] of Object.entries(topicCheckboxes)) {
+      if (value) topics.push(parseInt(id, 10));
+      selected_topic_ids.set(topics);
+    }
+  }
 </script>
 
 <div class="grid grid-cols-3 w-full justify-between items-center absolute top-1/2 -translate-y-1/2">
