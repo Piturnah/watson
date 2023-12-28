@@ -15,7 +15,9 @@ pub struct Problem {
     pub solnlink: Option<String>,
 }
 
-#[derive(Identifiable, Queryable, Selectable, Serialize, Associations, Debug, Clone)]
+#[derive(
+    Identifiable, Queryable, Selectable, Serialize, Deserialize, Associations, Debug, Clone,
+)]
 #[diesel(belongs_to(Problem))]
 #[diesel(table_name = solutions)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -36,7 +38,7 @@ pub struct ProblemTopic {
     pub problem_id: i32,
     pub topic_id: i32,
 }
-#[derive(Identifiable, Queryable, Selectable, Associations, Debug)]
+#[derive(Identifiable, Queryable, Selectable, Insertable, Associations, Debug)]
 #[diesel(belongs_to(Problem))]
 #[diesel(belongs_to(User))]
 #[diesel(primary_key(user_id, problem_id))]

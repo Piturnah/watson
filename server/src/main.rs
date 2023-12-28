@@ -8,7 +8,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     middleware,
     response::Json,
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 use chrono::{Months, NaiveDateTime, Utc};
@@ -22,7 +22,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 use models::{Module, ModulesView, NewProblem, Problem, Topic};
 
-use crate::models::{AddModule, AddTopic, InsertModule, ProblemTopic, Solution};
+use crate::models::{AddModule, AddTopic, InsertModule, ProblemTopic, Solution, UserProblem};
 
 // The migration path is relative to `CARGO_MANIFEST_DIR`.
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
@@ -51,6 +51,8 @@ async fn main() {
     let app = Router::new()
         .route("/problems/create", post(create_problem))
         .route("/problems/request", post(request_problem))
+        .route("/problems/solve", put(solve_problem))
+        .route("/solutions", post(submit_solution))
         .route("/modules", get(get_modules))
         .route_layer(middleware::from_fn_with_state(
             Arc::clone(&sessions),
@@ -83,6 +85,23 @@ async fn get_modules() -> Result<Json<ModulesView>, (StatusCode, String)> {
         .map_err(internal_error)?;
 
     Ok(Json(ModulesView { modules, topics }))
+}
+
+#[derive(Insertable, Deserialize, Debug)]
+#[diesel(table_name = schema::solutions)]
+struct SubmitSolution {
+    problem_id: i32,
+    body: String,
+}
+
+async fn submit_solution(Json(solution): Json<SubmitSolution>) -> Result<(), (StatusCode, String)> {
+    use schema::solutions::*;
+    let mut conn = establish_connection();
+    diesel::insert_into(table)
+        .values(solution)
+        .execute(&mut conn)
+        .map_err(internal_error)?;
+    Ok(())
 }
 
 async fn create_problem(
@@ -132,6 +151,46 @@ async fn create_problem(
         .map_err(internal_error)?;
 
     Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+struct SolveProblem {
+    problem_id: i32,
+    successful: bool,
+}
+
+async fn solve_problem(
+    headers: HeaderMap,
+    Json(SolveProblem {
+        problem_id,
+        successful,
+    }): Json<SolveProblem>,
+) -> Result<(), (StatusCode, String)> {
+    use schema::user_problem;
+    let mut conn = establish_connection();
+    let user_id = headers
+        .get("user_sub")
+        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
+        .to_str()
+        .map_err(internal_error)?
+        .to_string();
+    diesel::insert_into(user_problem::table)
+        .values(UserProblem {
+            user_id,
+            problem_id,
+            last_solved: Utc::now().naive_utc(),
+            successful,
+        })
+        .on_conflict((user_problem::user_id, user_problem::problem_id))
+        .do_update()
+        .set((
+            user_problem::last_solved.eq(Utc::now().naive_utc()),
+            user_problem::successful.eq(successful),
+        ))
+        .execute(&mut conn)
+        .map_err(internal_error)?;
+
+    Ok(())
 }
 
 #[derive(Deserialize, Debug)]

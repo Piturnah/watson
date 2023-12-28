@@ -8,11 +8,12 @@ use axum::{
 };
 use base64::Engine;
 use chrono::{offset::Utc, DateTime};
+use diesel::prelude::*;
 use jsonwebtoken::{jwk::Jwk, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use crate::internal_error;
+use crate::{establish_connection, internal_error};
 
 pub type Sessions = Arc<RwLock<HashMap<String, DateTime<Utc>>>>;
 
@@ -123,5 +124,19 @@ async fn validate_token(
 pub async fn login(
     Json(google_credential): Json<GoogleCredential>,
 ) -> Result<Json<UserInfo>, (StatusCode, String)> {
-    validate_token(google_credential).await.map(|res| Json(res))
+    use crate::schema::users::*;
+    let mut conn = establish_connection();
+    let result = validate_token(google_credential).await?;
+    diesel::insert_into(table)
+        .values((
+            id.eq(&result.sub),
+            name.eq(&result.name),
+            email.eq(&result.email),
+        ))
+        .on_conflict(id)
+        .do_nothing()
+        .execute(&mut conn)
+        .map_err(internal_error)?;
+
+    Ok(Json(result))
 }
