@@ -242,20 +242,24 @@ async fn request_problem(
             .load(&mut conn),
     }
     .map_err(internal_error)?;
-    let mut valid_problems: Vec<(i32, Option<NaiveDateTime>, Problem)> =
+    let mut valid_problems: Vec<(i32, (Option<NaiveDateTime>, Option<bool>), Problem)> =
         ProblemTopic::belonging_to(&selected_topics)
             .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
             .filter(users::id.eq(user).or(users::id.is_null()))
             //.distinct_on(problems::id)
             .select((
                 problem_topic::topic_id,
-                user_problem::last_solved.nullable(),
+                (
+                    // TODO: I don't remember why these have to be optional values.
+                    user_problem::last_solved.nullable(),
+                    user_problem::successful.nullable(),
+                ),
                 Problem::as_select(),
             ))
             .load(&mut conn)
             .map_err(internal_error)?;
 
-    valid_problems.sort_by(|(_, user1, problem1), (_, user2, problem2)| {
+    valid_problems.sort_by(|(_, (user1, _), problem1), (_, (user2, _), problem2)| {
         match problem1.id.cmp(&problem2.id) {
             Ordering::Less => Ordering::Less,
             Ordering::Greater => Ordering::Greater,
@@ -269,14 +273,14 @@ async fn request_problem(
     valid_problems.dedup_by_key(|(_, _, problem)| problem.id);
 
     let mut topic_problems_map: HashMap<i32, Vec<Problem>> = HashMap::new();
-    for (topic_id, last_solved, problem) in valid_problems {
+    for (topic_id, (last_solved, successful), problem) in valid_problems {
         if let Some(last_solved) = last_solved {
-            // Reject this problem if we already saw it in the last month.
+            // Reject this problem if we already saw it too recently.
             if Utc::now()
                 .naive_utc()
                 .signed_duration_since(last_solved)
                 .num_weeks()
-                < 4
+                < if successful.unwrap() { 4 } else { 1 }
             {
                 continue;
             }
