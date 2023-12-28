@@ -1,9 +1,10 @@
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{modules, problems, topics};
+use crate::schema::{modules, problem_topic, problems, solutions, topics, user_problem, users};
 
-#[derive(Queryable, Selectable, Serialize)]
+#[derive(Identifiable, Queryable, Selectable, Serialize, Debug, Clone)]
 #[diesel(table_name = problems)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Problem {
@@ -11,6 +12,52 @@ pub struct Problem {
     pub body: String,
     pub author: Option<String>,
     pub source: Option<String>,
+    pub solnlink: Option<String>,
+}
+
+#[derive(Identifiable, Queryable, Selectable, Serialize, Associations, Debug, Clone)]
+#[diesel(belongs_to(Problem))]
+#[diesel(table_name = solutions)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct Solution {
+    pub id: i32,
+    pub problem_id: i32,
+    pub body: String,
+}
+
+#[derive(Identifiable, Queryable, Selectable, Associations, Debug)]
+#[diesel(belongs_to(Problem))]
+#[diesel(belongs_to(Topic))]
+#[diesel(primary_key(problem_id, topic_id))]
+#[diesel(table_name = problem_topic)]
+#[diesel(primary_key(problem_id, topic_id))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct ProblemTopic {
+    pub problem_id: i32,
+    pub topic_id: i32,
+}
+#[derive(Identifiable, Queryable, Selectable, Associations, Debug)]
+#[diesel(belongs_to(Problem))]
+#[diesel(belongs_to(User))]
+#[diesel(primary_key(user_id, problem_id))]
+#[diesel(table_name = user_problem)]
+#[diesel(primary_key(user_id, problem_id))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct UserProblem {
+    pub user_id: String,
+    pub problem_id: i32,
+    pub last_solved: NaiveDateTime,
+    pub successful: bool,
+}
+
+#[derive(Identifiable, Queryable, Selectable, Debug)]
+#[diesel(table_name = users)]
+#[diesel(primary_key(id))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct User {
+    pub id: String,
+    pub name: String,
+    pub email: String,
 }
 
 #[derive(Deserialize)]
@@ -67,6 +114,7 @@ pub struct ModulesView {
 #[derive(Queryable, Selectable, Identifiable, Associations, Serialize, Debug)]
 #[diesel(belongs_to(Module))]
 #[diesel(table_name = topics)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Topic {
     pub id: i32,
     pub module_id: i32,

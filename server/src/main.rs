@@ -2,26 +2,27 @@ mod auth;
 mod models;
 mod schema;
 
-use std::{collections::HashMap, env, error::Error, net::SocketAddr, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, env, error::Error, net::SocketAddr, sync::Arc};
 
 use axum::{
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     middleware,
     response::Json,
     routing::{get, post},
     Router,
 };
-use diesel::pg::PgConnection;
-use diesel::prelude::*;
+use chrono::{Months, NaiveDateTime, Utc};
+use diesel::{pg::PgConnection, prelude::*, query_dsl::BelongingToDsl};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
-use serde::Deserialize;
+use rand::{distributions::WeightedIndex, prelude::*};
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tower_http::cors::{Any, CorsLayer};
 
 use models::{Module, ModulesView, NewProblem, Problem, Topic};
 
-use crate::models::{AddModule, AddTopic, InsertModule};
+use crate::models::{AddModule, AddTopic, InsertModule, ProblemTopic, Solution};
 
 // The migration path is relative to `CARGO_MANIFEST_DIR`.
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
@@ -49,7 +50,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/problems/create", post(create_problem))
-        .route("/problems/request", get(request_problem))
+        .route("/problems/request", post(request_problem))
         .route("/modules", get(get_modules))
         .route_layer(middleware::from_fn_with_state(
             Arc::clone(&sessions),
@@ -138,10 +139,140 @@ struct ProblemRequest {
     topic_ids: Vec<i32>,
 }
 
+#[derive(Serialize, Debug)]
+struct ProblemResponse {
+    problem: Option<Problem>,
+    solution: Option<String>,
+}
+
 async fn request_problem(
+    headers: HeaderMap,
     Json(request): Json<ProblemRequest>,
-) -> Result<Json<Problem>, (StatusCode, String)> {
-    todo!()
+) -> Result<Json<ProblemResponse>, (StatusCode, String)> {
+    use schema::{problem_topic, problems, solutions, topics, user_problem, users};
+    let mut conn = establish_connection();
+    let user = &headers
+        .get("user_sub")
+        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
+        .to_str()
+        .map_err(internal_error)?;
+
+    let selected_topics: Vec<Topic> = topics::table
+        .filter(topics::id.eq_any(&request.topic_ids))
+        .load(&mut conn)
+        .map_err(internal_error)?;
+    let mut valid_problems: Vec<(i32, Option<NaiveDateTime>, Problem)> =
+        ProblemTopic::belonging_to(&selected_topics)
+            .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
+            .filter(users::id.eq(user).or(users::id.is_null()))
+            //.distinct_on(problems::id)
+            .select((
+                problem_topic::topic_id,
+                user_problem::last_solved.nullable(),
+                Problem::as_select(),
+            ))
+            .load(&mut conn)
+            .map_err(internal_error)?;
+
+    valid_problems.sort_by(|(_, user1, problem1), (_, user2, problem2)| {
+        match problem1.id.cmp(&problem2.id) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Greater => Ordering::Greater,
+            Ordering::Equal => match (user1.is_some(), user2.is_some()) {
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
+                _ => Ordering::Equal, // This *should* be unreachable!
+            },
+        }
+    });
+    valid_problems.dedup_by_key(|(_, _, problem)| problem.id);
+
+    let mut topic_problems_map: HashMap<i32, Vec<Problem>> = HashMap::new();
+    for (topic_id, last_solved, problem) in valid_problems {
+        if let Some(last_solved) = last_solved {
+            // Reject this problem if we already saw it in the last month.
+            if (last_solved + Months::new(1)).and_utc() < Utc::now() {
+                continue;
+            }
+        }
+
+        if let Some(ps) = topic_problems_map.get_mut(&topic_id) {
+            ps.push(problem);
+        } else {
+            topic_problems_map.insert(topic_id, vec![problem]);
+        }
+    }
+
+    // Now we hopefully have only one of every problem!
+    // Next, we have to find the user's success rate for each topic.
+
+    let n_incorrect: Vec<(i32, i64)> = ProblemTopic::belonging_to(&selected_topics)
+        .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
+        .filter(users::id.eq(user))
+        .filter(diesel::dsl::not(user_problem::successful))
+        .group_by(problem_topic::topic_id)
+        .select((problem_topic::topic_id, diesel::dsl::count(problems::id)))
+        .load(&mut conn)
+        .map_err(internal_error)?;
+    let n_total: Vec<(i32, i64)> = ProblemTopic::belonging_to(&selected_topics)
+        .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
+        .filter(users::id.eq(user))
+        .group_by(problem_topic::topic_id)
+        .select((problem_topic::topic_id, diesel::dsl::count(problems::id)))
+        .load(&mut conn)
+        .map_err(internal_error)?;
+
+    // Laplace's rule of succession.
+    let mut laplace_weights = Vec::new();
+    for id_k in &request.topic_ids {
+        let numerator = n_incorrect
+            .iter()
+            .find(|(id, _)| *id == *id_k)
+            .map(|(_, n)| *n)
+            .unwrap_or(0) as f64
+            + 1.0;
+        let denominator = n_total
+            .iter()
+            .find(|(id, _)| *id == *id_k)
+            .map(|(_, n)| *n)
+            .unwrap_or(0) as f64
+            + 2.0;
+        laplace_weights.push(numerator / denominator);
+    }
+
+    let dist = WeightedIndex::new(&laplace_weights).map_err(internal_error)?;
+    let mut rng = thread_rng();
+    let next_problem = loop {
+        let next_topic = request.topic_ids[dist.sample(&mut rng)];
+        if let Some(problem) = topic_problems_map.get_mut(&next_topic).and_then(|topic| {
+            (topic.len() != 0).then(|| {
+                let next_problem_idx: usize = rng.gen_range(0..topic.len());
+                topic.swap_remove(next_problem_idx)
+            })
+        }) {
+            break Some(problem.to_owned());
+        }
+        if topic_problems_map
+            .values()
+            .map(|ps| ps.len())
+            .sum::<usize>()
+            == 0
+        {
+            break None;
+        }
+    };
+
+    let solution: Option<String> = next_problem.as_ref().and_then(|problem| {
+        Solution::belonging_to(problem)
+            .select(solutions::body)
+            .first(&mut conn)
+            .ok()
+    });
+
+    Ok(Json(ProblemResponse {
+        problem: next_problem,
+        solution,
+    }))
 }
 
 pub fn internal_error<E: Error>(error: E) -> (StatusCode, String) {

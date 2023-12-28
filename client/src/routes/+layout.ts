@@ -11,4 +11,6 @@ export function load({ route }: { route: { id: string } }) {
   } else {
     axios.defaults.headers["Authorization"] = `Bearer ${credential}`;
   }
+
+  axios.post("/problems/request", { topic_ids: [1, 6, 7, 8] }).then(res => console.log(res)).catch((e) => console.warn(e));
 }

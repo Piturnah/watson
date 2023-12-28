@@ -42,8 +42,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    user_problem (user_sub, problem_id) {
-        user_sub -> Varchar,
+    user_problem (user_id, problem_id) {
+        user_id -> Varchar,
         problem_id -> Int4,
         last_solved -> Timestamp,
         successful -> Bool,
@@ -51,8 +51,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    users (sub) {
-        sub -> Varchar,
+    users (id) {
+        id -> Varchar,
         name -> Varchar,
         email -> Varchar,
     }
@@ -63,7 +63,7 @@ diesel::joinable!(problem_topic -> topics (topic_id));
 diesel::joinable!(solutions -> problems (problem_id));
 diesel::joinable!(topics -> modules (module_id));
 diesel::joinable!(user_problem -> problems (problem_id));
-diesel::joinable!(user_problem -> users (user_sub));
+diesel::joinable!(user_problem -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     modules,
