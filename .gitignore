@@ -2,6 +2,7 @@
 *.db
 logfile
 testdb/
+db/
 
 .DS_Store
 node_modules

@@ -10,14 +10,19 @@
 
   let problem: { id: number; body: string; solnlink: string } = { id: -1, body: "", solnlink: "" };
   let soln = "";
+
+  let noProblem = false;
   function getProblem() {
     axios
       .post("/problems/request", { topic_ids: get(selected_topic_ids) })
       .then(({ data }) => {
         showSoln = false;
-        problem = data.problem;
-        soln = data.solution;
-        submitSoln = "";
+        if (data.problem === null) noProblem = true;
+        else {
+          problem = data.problem;
+          soln = data.solution;
+          submitSoln = "";
+        }
       })
       .catch((e) => console.warn(e));
   }
@@ -45,43 +50,55 @@
 </script>
 
 <div class="grid grid-cols-1 p-12 w-[959px] m-auto gap-6">
-  <Box>
-    <TexBox content={problem.body} />
-  </Box>
-  {#if showSoln}
+  {#if !noProblem}
     <Box>
-      {#if soln !== null}
-        <TexBox content={soln} />
-      {:else}
-        <p>There's no solution :(</p>
-        {#if problem.solnlink !== null && problem.solnlink !== ""}
-          <p>
-            The problem submitter indicated that you can find the solution here: <a
-              href={problem.solnlink}>{problem.solnlink}</a
-            >
-          </p>
-        {/if}
-        <p>If you know the answer, you can submit the solution below:</p>
-        <textarea
-          bind:value={submitSoln}
-          class="h-56 w-full p-1 font-mono bg-midnight text-white"
-        />
-        {#if submitSoln !== ""}
-          <TexBox content={submitSoln} />
-        {/if}
-      {/if}
+      <TexBox content={`${problem.id}. ` + problem.body} />
     </Box>
-    <div class="flex flex-row-reverse w-full gap-4">
-      {#if submitSoln === ""}
-        <button on:click={() => next(true)} class="btn btn-green"> Correct </button>
-        <button on:click={() => next(false)} class="btn btn-red"> Incorrect </button>
-      {:else}
-        <button on:click={handleSolnSubmit} class="btn btn-white"> Submit </button>
-      {/if}
-    </div>
+    {#if showSoln}
+      <Box>
+        {#if soln !== null}
+          <TexBox content={soln} />
+        {:else}
+          <p>There's no solution :(</p>
+          {#if problem.solnlink !== null && problem.solnlink !== ""}
+            <p>
+              The problem submitter indicated that you can find the solution here: <a
+                href={problem.solnlink}>{problem.solnlink}</a
+              >
+            </p>
+          {/if}
+          <p>If you know the answer, you can submit the solution below:</p>
+          <textarea
+            bind:value={submitSoln}
+            class="h-56 w-full p-1 font-mono bg-midnight text-white"
+          />
+          {#if submitSoln !== ""}
+            <TexBox content={submitSoln} />
+          {/if}
+        {/if}
+      </Box>
+      <div class="flex flex-row-reverse w-full gap-4">
+        {#if submitSoln === ""}
+          <button on:click={() => next(true)} class="btn btn-green"> Correct </button>
+          <button on:click={() => next(false)} class="btn btn-red"> Incorrect </button>
+        {:else}
+          <button on:click={handleSolnSubmit} class="btn btn-white"> Submit </button>
+        {/if}
+      </div>
+    {:else}
+      <div class="flex flex-row-reverse justify-between w-full">
+        <button on:click={() => (showSoln = !showSoln)} class="btn btn-grey">
+          Show solution
+        </button>
+        <a href="/" class="btn btn-grey"> Back </a>
+      </div>
+    {/if}
   {:else}
+    <Box>
+      You have already completed all the problems in these topics in the last month! Try adding some
+      more topics, or adding more problems to the database.
+    </Box>
     <div class="flex flex-row-reverse justify-between w-full">
-      <button on:click={() => (showSoln = !showSoln)} class="btn btn-grey"> Show solution </button>
       <a href="/" class="btn btn-grey"> Back </a>
     </div>
   {/if}

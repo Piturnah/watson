@@ -11,7 +11,7 @@ use axum::{
     routing::{get, post, put},
     Router,
 };
-use chrono::{Months, NaiveDateTime, Utc};
+use chrono::{NaiveDateTime, Utc};
 use diesel::{pg::PgConnection, prelude::*, query_dsl::BelongingToDsl};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
@@ -216,10 +216,13 @@ async fn request_problem(
         .to_str()
         .map_err(internal_error)?;
 
-    let selected_topics: Vec<Topic> = topics::table
-        .filter(topics::id.eq_any(&request.topic_ids))
-        .load(&mut conn)
-        .map_err(internal_error)?;
+    let selected_topics: Vec<Topic> = match request.topic_ids.len() {
+        0 => topics::table.load(&mut conn),
+        _ => topics::table
+            .filter(topics::id.eq_any(&request.topic_ids))
+            .load(&mut conn),
+    }
+    .map_err(internal_error)?;
     let mut valid_problems: Vec<(i32, Option<NaiveDateTime>, Problem)> =
         ProblemTopic::belonging_to(&selected_topics)
             .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
@@ -250,7 +253,12 @@ async fn request_problem(
     for (topic_id, last_solved, problem) in valid_problems {
         if let Some(last_solved) = last_solved {
             // Reject this problem if we already saw it in the last month.
-            if (last_solved + Months::new(1)).and_utc() < Utc::now() {
+            if Utc::now()
+                .naive_utc()
+                .signed_duration_since(last_solved)
+                .num_weeks()
+                < 4
+            {
                 continue;
             }
         }
