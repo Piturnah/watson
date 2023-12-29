@@ -12,9 +12,10 @@ use axum::{
     Router,
 };
 use chrono::{NaiveDateTime, Utc};
-use diesel::{pg::PgConnection, prelude::*, query_dsl::BelongingToDsl};
+use diesel::{dsl, pg::PgConnection, prelude::*, query_dsl::BelongingToDsl};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
+use itertools::Itertools;
 use rand::{distributions::WeightedIndex, prelude::*};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -54,6 +55,7 @@ async fn main() {
         .route("/problems/solve", put(solve_problem))
         .route("/solutions", post(submit_solution))
         .route("/modules", get(get_modules))
+        .route("/leaderboard", get(get_leaderboard))
         .route_layer(middleware::from_fn_with_state(
             Arc::clone(&sessions),
             auth::auth,
@@ -87,6 +89,62 @@ async fn get_modules() -> Result<Json<ModulesView>, (StatusCode, String)> {
     Ok(Json(ModulesView { modules, topics }))
 }
 
+#[derive(Serialize)]
+struct LeaderboardEntry {
+    user_name: String,
+    n_problems: i64,
+    n_solutions: i64,
+}
+
+async fn get_leaderboard() -> Result<Json<Vec<LeaderboardEntry>>, (StatusCode, String)> {
+    const SOLUTIONS_WEIGHT: i64 = 2; // Solutions are worth this much more than problems in the
+                                     // ranking.
+
+    use schema::{problems, solutions, users};
+    let mut conn = establish_connection();
+
+    let n_problems = problems::table
+        .inner_join(users::table)
+        .group_by(users::id)
+        .select((users::id, users::name, dsl::count(problems::id)))
+        .load(&mut conn)
+        .map_err(internal_error)?;
+    let n_solutions = solutions::table
+        .inner_join(users::table)
+        .group_by(users::id)
+        .select((users::id, users::name, dsl::count(solutions::id)))
+        .load(&mut conn)
+        .map_err(internal_error)?;
+
+    let mut scores_map: HashMap<String, (String, i64, i64)> = HashMap::new();
+    n_problems.into_iter().for_each(|(id, name, count)| {
+        scores_map.insert(id, (name, count, 0));
+    });
+    n_solutions.into_iter().for_each(|(id, name, count)| {
+        if let Some((_, _, n)) = scores_map.get_mut(&id) {
+            *n = count;
+        } else {
+            scores_map.insert(id, (name, count, 0));
+        }
+    });
+
+    Ok(Json(
+        scores_map
+            .into_iter()
+            .sorted_by_key(|(_, (_, n_problems, n_solutions))| {
+                n_problems + n_solutions * SOLUTIONS_WEIGHT
+            })
+            .map(
+                |(_, (user_name, n_problems, n_solutions))| LeaderboardEntry {
+                    user_name,
+                    n_problems,
+                    n_solutions,
+                },
+            )
+            .collect(),
+    ))
+}
+
 #[derive(Insertable, Deserialize, Debug)]
 #[diesel(table_name = schema::solutions)]
 struct SubmitSolution {
@@ -106,7 +164,7 @@ async fn submit_solution(
         .to_str()
         .map_err(internal_error)?;
     diesel::insert_into(table)
-        .values((solution, submitted_by.eq(user.to_string())))
+        .values((solution, user_id.eq(user.to_string())))
         .execute(&mut conn)
         .map_err(internal_error)?;
     Ok(())
@@ -142,10 +200,7 @@ async fn create_problem(
     };
 
     let result = diesel::insert_into(problems::table)
-        .values((
-            &new_problem.problem,
-            problems::submitted_by.eq(user.to_string()),
-        ))
+        .values((&new_problem.problem, problems::user_id.eq(user.to_string())))
         .returning(Problem::as_returning())
         .get_result(&mut conn)
         .map_err(internal_error)?;
@@ -155,7 +210,7 @@ async fn create_problem(
             .values((
                 solutions::body.eq(soln),
                 solutions::problem_id.eq(result.id),
-                solutions::submitted_by.eq(user.to_string()),
+                solutions::user_id.eq(user.to_string()),
             ))
             .execute(&mut conn)
             .map_err(internal_error)?;

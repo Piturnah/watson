@@ -63,7 +63,8 @@
           {#if problem.solnlink !== null && problem.solnlink !== ""}
             <p>
               The problem submitter indicated that you can find the solution here: <a
-                href={problem.solnlink}>{problem.solnlink}</a
+                href={problem.solnlink}
+                target="_blank">{problem.solnlink}</a
               >
             </p>
           {/if}

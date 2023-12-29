@@ -1,5 +1,5 @@
 ALTER TABLE problems
-DROP COLUMN submitted_by;
+DROP COLUMN user_id;
 
 ALTER TABLE solutions
-DROP COLUMN submitted_by;
+DROP COLUMN user_id;

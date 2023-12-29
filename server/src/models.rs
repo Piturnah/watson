@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::{modules, problem_topic, problems, solutions, topics, user_problem, users};
 
-#[derive(Identifiable, Queryable, Selectable, Serialize, Debug, Clone)]
+#[derive(Identifiable, Queryable, Selectable, Associations, Serialize, Debug, Clone)]
+#[diesel(belongs_to(User))]
 #[diesel(table_name = problems)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Problem {
@@ -14,13 +15,14 @@ pub struct Problem {
     pub source: Option<String>,
     pub solnlink: Option<String>,
     pub submitted_at: NaiveDateTime,
-    pub submitted_by: Option<String>,
+    pub user_id: Option<String>,
 }
 
 #[derive(
     Identifiable, Queryable, Selectable, Serialize, Deserialize, Associations, Debug, Clone,
 )]
 #[diesel(belongs_to(Problem))]
+#[diesel(belongs_to(User))]
 #[diesel(table_name = solutions)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Solution {
@@ -28,7 +30,7 @@ pub struct Solution {
     pub problem_id: i32,
     pub body: String,
     pub submitted_at: NaiveDateTime,
-    pub submitted_by: Option<String>,
+    pub user_id: Option<String>,
 }
 
 #[derive(Identifiable, Queryable, Selectable, Associations, Debug)]

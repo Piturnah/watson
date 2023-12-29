@@ -8,6 +8,8 @@
   let modules: { id: number; title: string }[] = [];
   let topics: { id: number; module_id: number; title: string }[] = [];
 
+  let leaderboard: { user_name: string; n_problems: number; n_solutions: number }[] = [];
+
   let moduleCheckboxes = {};
   let topicCheckboxes = {};
   onMount(() => {
@@ -17,6 +19,11 @@
         modules = data.modules;
         topics = data.topics;
       })
+      .catch((e) => console.warn(e));
+
+    axios
+      .get("/leaderboard")
+      .then(({ data }) => (leaderboard = data))
       .catch((e) => console.warn(e));
   });
 
@@ -31,8 +38,8 @@
 
 <div class="grid grid-cols-3 w-full justify-between items-center absolute top-1/2 -translate-y-1/2">
   <div class="bg-coal border border-dust p-6 ml-10">
-    <h1 class="text-lg font-bold">Filter Topics</h1>
-    <ul class="flex flex-col gap-2 mt-5">
+    <h1 class="text-lg font-bold mb-5">Filter Topics</h1>
+    <ul class="flex flex-col gap-2">
       {#each modules as { id, title } (id)}
         <li>
           <div class="bg-midnight p-2 border border-dust flex justify-between">
@@ -73,5 +80,36 @@
       <a href="/review" class="btn btn-white">Review</a>
       <a href="/add" class="btn btn-white">Add problems</a>
     </Box>
+  </div>
+  <div class="bg-coal border border-dust p-6 mr-10">
+    <h1 class="text-lg font-bold mb-5">Contributions Leaderboard</h1>
+    <div class="grid grid-cols-1 gap-y-1">
+      {#each leaderboard as { user_name, n_problems, n_solutions }, idx (user_name)}
+        <div
+          class={`flex justify-between flex-shrink-0 whitespace-nowrap px-2 py-0.5 rounded-md
+          ${
+            idx === 0
+              ? "bg-gold text-midnight"
+              : idx === 1
+                ? "bg-silver text-midnight"
+                : idx === 2
+                  ? "bg-bronze text-midnight"
+                  : ""
+          }
+        `}
+        >
+          <div class="flex-1">{idx + 1}. {user_name}</div>
+          <div
+            class={`border-b-2 w-full border-dotted flex-shrink mb-1.5 border-opacity-50 ${
+              idx > 2 ? "border-white" : "border-midnight"
+            }`}
+          ></div>
+          <div class="flex">
+            <div class="w-10 text-center">{n_problems}</div>
+            <div class="w-10 text-center">{n_solutions}</div>
+          </div>
+        </div>
+      {/each}
+    </div>
   </div>
 </div>
