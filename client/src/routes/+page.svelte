@@ -81,7 +81,7 @@
       <a href="/add" class="btn btn-white">Add problems</a>
     </Box>
   </div>
-  <div class="bg-coal border border-dust p-6 mr-10">
+  <div class="bg-coal border border-dust p-6 mr-10 h-full">
     <h1 class="text-lg font-bold mb-5">Contributions Leaderboard</h1>
     <div class="grid grid-cols-1 gap-y-1">
       {#each leaderboard as { user_name, n_problems, n_solutions }, idx (user_name)}

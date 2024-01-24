@@ -1,7 +1,8 @@
 import { math, display } from "mathlifier";
 import axiosLib from "axios";
+import { PUBLIC_WATSON_API_BASE } from "$env/static/public";
 
-export const axios = axiosLib.create({ baseURL: "http://localhost:3000/" });
+export const axios = axiosLib.create({ baseURL: PUBLIC_WATSON_API_BASE });
 
 enum TexString {
   Text,

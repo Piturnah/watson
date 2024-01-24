@@ -2,6 +2,7 @@
   import Box from "$lib/Box.svelte";
   import { axios } from "$lib";
   import { goto } from "$app/navigation";
+  import { PUBLIC_WATSON_CLIENT_ID } from "$env/static/public";
   const urlParams = new URLSearchParams(window.location.search);
   const redirect = urlParams.get("to");
 
@@ -25,7 +26,7 @@
     {#if !loggingIn}
       <div
         id="g_id_onload"
-        data-client_id="831067350519-i2ce97b0d7ru82eh3e394dg6j332nmi8.apps.googleusercontent.com"
+        data-client_id={PUBLIC_WATSON_CLIENT_ID}
         data-context="signin"
         data-ux_mode="popup"
         data-callback="onSignIn"

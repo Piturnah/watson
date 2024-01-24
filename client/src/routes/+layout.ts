@@ -1,6 +1,8 @@
 import { redirect } from "@sveltejs/kit";
 import { axios } from "$lib";
 
+export const ssr = false;
+
 // Check if we're authenticated. If not, redirect to login page.
 //
 // TODO: Refresh token.

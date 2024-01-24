@@ -14,7 +14,6 @@ use axum::{
 use chrono::{NaiveDateTime, Utc};
 use diesel::{dsl, pg::PgConnection, prelude::*, query_dsl::BelongingToDsl};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use dotenvy::dotenv;
 use itertools::Itertools;
 use rand::{distributions::WeightedIndex, prelude::*};
 use serde::{Deserialize, Serialize};
@@ -29,15 +28,18 @@ use crate::models::{AddModule, AddTopic, InsertModule, ProblemTopic, Solution, U
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 
 pub fn establish_connection() -> PgConnection {
-    dotenv().ok();
-
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     PgConnection::establish(&database_url)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
+        .unwrap_or_else(|e| panic!("Error connecting to {database_url}\n {e}"))
 }
 
 #[tokio::main]
 async fn main() {
+    #[cfg(feature = "dotenv")]
+    {
+        dotenvy::dotenv().ok();
+    }
+
     let mut conn = establish_connection();
     conn.run_pending_migrations(MIGRATIONS).unwrap();
 
@@ -45,6 +47,7 @@ async fn main() {
     let origins = [
         "http://localhost:5173".parse().unwrap(),
         "http://localhost:4173".parse().unwrap(),
+        "https://watson-project.com".parse().unwrap(),
     ];
 
     let sessions = Arc::new(RwLock::new(HashMap::new()));
