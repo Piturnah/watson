@@ -3,20 +3,22 @@ name = "watson-server"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+strip = true
+
 [features]
 default = ["dotenv"]
 static_ssl = ["openssl/vendored"]
 dotenv = ["dep:dotenvy"]
 
 [dependencies]
+argon2 = "0.5.3"
 axum = "0.7.2"
-base64 = "0.21.5"
 chrono = { version = "0.4.31", features = ["serde"] }
-diesel = { version = "2.1.0", features = ["postgres", "chrono"] }
+diesel = { version = "2.1.0", features = ["postgres", "chrono", "uuid"] }
 diesel_migrations = "2.1.0"
 dotenvy = { version = "0.15.7", optional = true }
 itertools = "0.12.0"
-jsonwebtoken = "9.2.0"
 openssl = "0.10.62"
 rand = "0.8.5"
 reqwest = { version = "0.11.23", features = ["json"] }
@@ -25,3 +27,4 @@ serde_json = "1.0.108"
 tokio = { version = "1.35.1", features = ["full"] }
 tower = "0.4.13"
 tower-http = { version = "0.5.0", features = ["cors"] }
+uuid = { version = "1.7.0", features = ["v4", "serde"] }

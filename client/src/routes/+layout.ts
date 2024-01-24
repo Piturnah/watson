@@ -7,10 +7,10 @@ export const ssr = false;
 //
 // TODO: Refresh token.
 export function load({ route }: { route: { id: string } }) {
-  let credential = sessionStorage.getItem("credential");
-  if (credential === null && route.id !== "/login") {
+  let session = localStorage.getItem("session");
+  if (session === null && route.id !== "/login" && route.id !== "/register") {
     throw redirect(303, `/login?to=${route.id}`);
   } else {
-    axios.defaults.headers["Authorization"] = `Bearer ${credential}`;
+    axios.defaults.headers["Authorization"] = session;
   }
 }

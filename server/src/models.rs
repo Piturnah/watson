@@ -1,8 +1,20 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use crate::schema::{modules, problem_topic, problems, solutions, topics, user_problem, users};
+use crate::schema::{
+    access_tokens, modules, problem_topic, problems, solutions, topics, user_problem, users,
+};
+
+#[derive(Identifiable, Queryable, Selectable, Debug, Clone)]
+#[diesel(table_name = access_tokens)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct AccessToken {
+    pub id: Uuid,
+    pub name: String,
+    pub redeemed: bool,
+}
 
 #[derive(Identifiable, Queryable, Selectable, Associations, Serialize, Debug, Clone)]
 #[diesel(belongs_to(User))]
@@ -15,7 +27,7 @@ pub struct Problem {
     pub source: Option<String>,
     pub solnlink: Option<String>,
     pub submitted_at: NaiveDateTime,
-    pub user_id: Option<String>,
+    pub user_id: Option<Uuid>,
 }
 
 #[derive(
@@ -30,7 +42,7 @@ pub struct Solution {
     pub problem_id: i32,
     pub body: String,
     pub submitted_at: NaiveDateTime,
-    pub user_id: Option<String>,
+    pub user_id: Option<Uuid>,
 }
 
 #[derive(Identifiable, Queryable, Selectable, Associations, Debug)]
@@ -52,7 +64,7 @@ pub struct ProblemTopic {
 #[diesel(primary_key(user_id, problem_id))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct UserProblem {
-    pub user_id: String,
+    pub user_id: Uuid,
     pub problem_id: i32,
     pub last_solved: NaiveDateTime,
     pub successful: bool,
@@ -63,9 +75,10 @@ pub struct UserProblem {
 #[diesel(primary_key(id))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {
-    pub id: String,
     pub name: String,
     pub email: String,
+    pub id: Uuid,
+    pub password: Option<String>,
 }
 
 #[derive(Deserialize)]

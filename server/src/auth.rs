@@ -1,142 +1,174 @@
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
+use argon2::{
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use axum::{
     extract::{Request, State},
     http::StatusCode,
     middleware::Next,
     response::{Json, Response},
 };
-use base64::Engine;
-use chrono::{offset::Utc, DateTime};
+use chrono::{offset::Utc, DateTime, Days};
 use diesel::prelude::*;
-use jsonwebtoken::{jwk::Jwk, Algorithm, DecodingKey, Validation};
-use serde::{Deserialize, Serialize};
+use rand::rngs::OsRng;
+use serde::Deserialize;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
-use crate::{establish_connection, internal_error};
+use crate::{establish_connection, internal_error, models::AccessToken};
 
-pub type Sessions = Arc<RwLock<HashMap<String, DateTime<Utc>>>>;
+#[derive(Clone)]
+pub struct Session {
+    user_id: Uuid,
+    expires: DateTime<Utc>,
+}
 
-/// Middleware for token authentication.
+pub type Sessions = Arc<RwLock<HashMap<Uuid, Session>>>;
+
+/// Middleware for session authentication.
 pub async fn auth(
     State(sessions): State<Sessions>,
     mut request: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
-    let bearer_token = request
+    let session_id = request
         .headers()
-        .get("authorization")
-        .and_then(|header| header.to_str().ok())
-        .and_then(|header| header.split("Bearer ").nth(1))
-        .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                "no token found in headers".to_string(),
-            )
-        })?;
-
-    let mut sessions_wlock = sessions.write().await;
-    let user_sub = if let Some(datetime) = sessions_wlock.get_mut(bearer_token) {
-        // Check for session expiry.
-        if Utc::now()
-            .signed_duration_since(datetime.clone())
-            .abs()
-            .num_hours()
-            > 1
-        {
-            return Err((StatusCode::UNAUTHORIZED, "session expired".to_string()));
-        }
-
-        *datetime = Utc::now();
-        let payload = bearer_token
-            .split('.')
-            .nth(1)
-            .ok_or_else(|| (StatusCode::UNAUTHORIZED, "invalid token".to_string()))?;
-        let user: UserInfo = serde_json::from_str(
-            &String::from_utf8(
-                base64::engine::general_purpose::STANDARD_NO_PAD
-                    .decode(payload)
-                    .map_err(internal_error)?,
-            )
-            .map_err(internal_error)?,
-        )
+        .get("Authorization")
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "No session active".to_string()))?
+        .to_str()
         .map_err(internal_error)?;
-        user.sub
-    } else {
-        let user = validate_token(GoogleCredential {
-            credential: bearer_token.to_string(),
-        })
-        .await?;
-        sessions_wlock.insert(bearer_token.to_string(), Utc::now());
-        user.sub
-    };
 
+    let sessions_rlock = sessions.read().await;
+    let session = sessions_rlock
+        .get(&Uuid::parse_str(session_id).map_err(internal_error)?)
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "No session active".to_string()))?;
+
+    if Utc::now()
+        .signed_duration_since(session.expires)
+        .num_microseconds()
+        .unwrap_or(1)
+        > 0
+    {
+        return Err((StatusCode::UNAUTHORIZED, "Session expired".to_string()));
+    }
+
+    // Ok, we are authorized!
     request
         .headers_mut()
-        .insert("user_sub", user_sub.parse().unwrap());
+        .insert("user_id", session.user_id.to_string().parse().unwrap());
+
     Ok(next.run(request).await)
 }
 
-#[derive(Deserialize, Debug)]
-pub struct GoogleCredential {
-    credential: String,
+#[derive(Deserialize)]
+pub struct RegisterRequestBody {
+    req_token: Uuid,
+    req_email: String,
+    req_password: String,
 }
 
-#[derive(Deserialize, Debug)]
-struct GoogleJwkKeys {
-    keys: Vec<Jwk>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct UserInfo {
-    sub: String,
-    name: String,
-    email: String,
-}
-
-async fn validate_token(
-    GoogleCredential { credential }: GoogleCredential,
-) -> Result<UserInfo, (StatusCode, String)> {
-    // TODO: Caching.
-    let google_jwks: GoogleJwkKeys = reqwest::get("https://www.googleapis.com/oauth2/v3/certs")
-        .await
-        .map_err(internal_error)?
-        .json()
-        .await
-        .map_err(internal_error)?;
-    // XXX: For now [1] seems to work and [0] gives `InvalidSignature`. This may change in future
-    // in which case the solution will be to cycle through the keys until one of them works.
-    let jwk = &google_jwks.keys[1];
-    let mut validation = Validation::new(Algorithm::RS256);
-    validation
-        .set_audience(&[&env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID must be set")]);
-    validation.set_issuer(&["accounts.google.com", "https://accounts.google.com"]);
-
-    Ok(jsonwebtoken::decode::<UserInfo>(
-        &credential,
-        &DecodingKey::from_jwk(jwk).map_err(internal_error)?,
-        &validation,
-    )
-    .map_err(|err| (StatusCode::UNAUTHORIZED, err.to_string()))?
-    .claims)
-}
-
-pub async fn login(
-    Json(google_credential): Json<GoogleCredential>,
-) -> Result<Json<UserInfo>, (StatusCode, String)> {
-    use crate::schema::users::*;
+pub async fn register(
+    Json(RegisterRequestBody {
+        req_token,
+        req_email,
+        req_password,
+    }): Json<RegisterRequestBody>,
+) -> Result<(), (StatusCode, String)> {
+    use crate::schema::{access_tokens, users};
     let mut conn = establish_connection();
-    let result = validate_token(google_credential).await?;
-    diesel::insert_into(table)
-        .values((
-            id.eq(&result.sub),
-            name.eq(&result.name),
-            email.eq(&result.email),
-        ))
-        .on_conflict(id)
-        .do_nothing()
+    let token = access_tokens::table::find(access_tokens::table, req_token)
+        .select(AccessToken::as_select())
+        .first(&mut conn)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid token.".to_string()))?;
+    if token.redeemed {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Token already redeemed.".to_string(),
+        ));
+    }
+
+    // Wooo! New user!
+    diesel::update(access_tokens::table.find(req_token))
+        .set(access_tokens::redeemed.eq(true))
         .execute(&mut conn)
         .map_err(internal_error)?;
 
-    Ok(Json(result))
+    let salt = SaltString::generate(&mut OsRng);
+    let hashed_password = Argon2::default()
+        .hash_password(req_password.as_bytes(), &salt)
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Couldn't hash password".to_string(),
+            )
+        })?
+        .to_string();
+
+    diesel::insert_into(users::table)
+        .values((
+            users::name.eq(&token.name),
+            users::email.eq(&req_email),
+            users::password.eq(&hashed_password),
+        ))
+        .execute(&mut conn)
+        .map_err(internal_error)?;
+    todo!()
+}
+
+#[derive(Deserialize)]
+pub struct AuthRequestBody {
+    req_email: String,
+    req_password: String,
+}
+
+pub async fn login(
+    State(sessions): State<Sessions>,
+    Json(AuthRequestBody {
+        req_email,
+        req_password,
+    }): Json<AuthRequestBody>,
+) -> Result<String, (StatusCode, String)> {
+    use crate::schema::users::*;
+    let mut conn = establish_connection();
+
+    let (user_id, password_hash): (Uuid, Option<String>) =
+        table::filter(table, email.eq(req_email))
+            .select((id, password.nullable()))
+            .first(&mut conn)
+            .map_err(|_| (StatusCode::UNAUTHORIZED, "User not found".to_string()))?;
+
+    // TODO: Deal with null password case.
+    let Some(password_hash) = password_hash else {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "This user has no password set! Contact administrator.".to_string(),
+        ));
+    };
+
+    let parsed_hash = PasswordHash::new(&password_hash).map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal error occurred".to_string(),
+        )
+    })?;
+
+    if Argon2::default()
+        .verify_password(req_password.as_bytes(), &parsed_hash)
+        .is_err()
+    {
+        return Err((StatusCode::UNAUTHORIZED, "Incorrect password.".to_string()));
+    }
+
+    // XXX: ONLY FROM THIS POINT ON ARE WE AUTHORIZED.
+    let mut sessions_wlock = sessions.write().await;
+    let session_id = Uuid::new_v4();
+    let expires = Utc::now()
+        .checked_add_days(Days::new(1))
+        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, "Funky time".to_string()))?;
+    sessions_wlock.insert(session_id, Session { user_id, expires });
+
+    // TODO: I tried to do this with Set-Cookie header. But I am too stupid to work it out.
+    Ok(session_id.to_string())
 }

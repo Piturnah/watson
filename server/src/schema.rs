@@ -1,6 +1,14 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    access_tokens (id) {
+        id -> Uuid,
+        name -> Varchar,
+        redeemed -> Bool,
+    }
+}
+
+diesel::table! {
     modules (id) {
         id -> Int4,
         title -> Varchar,
@@ -22,7 +30,7 @@ diesel::table! {
         source -> Nullable<Varchar>,
         solnlink -> Nullable<Varchar>,
         submitted_at -> Timestamp,
-        user_id -> Nullable<Varchar>,
+        user_id -> Nullable<Uuid>,
     }
 }
 
@@ -33,7 +41,7 @@ diesel::table! {
         body -> Text,
         author -> Nullable<Varchar>,
         submitted_at -> Timestamp,
-        user_id -> Nullable<Varchar>,
+        user_id -> Nullable<Uuid>,
     }
 }
 
@@ -47,7 +55,7 @@ diesel::table! {
 
 diesel::table! {
     user_problem (user_id, problem_id) {
-        user_id -> Varchar,
+        user_id -> Uuid,
         problem_id -> Int4,
         last_solved -> Timestamp,
         successful -> Bool,
@@ -56,9 +64,10 @@ diesel::table! {
 
 diesel::table! {
     users (id) {
-        id -> Varchar,
         name -> Varchar,
         email -> Varchar,
+        id -> Uuid,
+        password -> Nullable<Varchar>,
     }
 }
 
@@ -72,6 +81,7 @@ diesel::joinable!(user_problem -> problems (problem_id));
 diesel::joinable!(user_problem -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    access_tokens,
     modules,
     problem_topic,
     problems,

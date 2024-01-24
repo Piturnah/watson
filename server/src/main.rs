@@ -21,6 +21,7 @@ use tokio::sync::RwLock;
 use tower_http::cors::{Any, CorsLayer};
 
 use models::{Module, ModulesView, NewProblem, Problem, Topic};
+use uuid::Uuid;
 
 use crate::models::{AddModule, AddTopic, InsertModule, ProblemTopic, Solution, UserProblem};
 
@@ -31,6 +32,13 @@ pub fn establish_connection() -> PgConnection {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     PgConnection::establish(&database_url)
         .unwrap_or_else(|e| panic!("Error connecting to {database_url}\n {e}"))
+}
+
+fn extract_user_id(headers: &HeaderMap) -> Result<Uuid, (StatusCode, String)> {
+    headers
+        .get("user_id")
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "No user".to_string()))
+        .map(|id| Uuid::parse_str(id.to_str().unwrap()).unwrap())
 }
 
 #[tokio::main]
@@ -44,11 +52,14 @@ async fn main() {
     conn.run_pending_migrations(MIGRATIONS).unwrap();
 
     // TODO: dotenv.
-    let origins = [
-        "http://localhost:5173".parse().unwrap(),
-        "http://localhost:4173".parse().unwrap(),
-        "https://watson-project.com".parse().unwrap(),
-    ];
+    let origins = if cfg!(debug_assertions) {
+        vec![
+            "http://localhost:5173".parse().unwrap(),
+            "http://localhost:4173".parse().unwrap(),
+        ]
+    } else {
+        vec!["https://watson-project.com".parse().unwrap()]
+    };
 
     let sessions = Arc::new(RwLock::new(HashMap::new()));
 
@@ -64,6 +75,7 @@ async fn main() {
             auth::auth,
         ))
         .route("/login", post(auth::login))
+        .route("/register", post(auth::register))
         .layer(
             CorsLayer::new()
                 .allow_methods(Any)
@@ -71,7 +83,7 @@ async fn main() {
                 .allow_origin(origins),
         )
         .with_state(sessions);
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -119,7 +131,7 @@ async fn get_leaderboard() -> Result<Json<Vec<LeaderboardEntry>>, (StatusCode, S
         .load(&mut conn)
         .map_err(internal_error)?;
 
-    let mut scores_map: HashMap<String, (String, i64, i64)> = HashMap::new();
+    let mut scores_map: HashMap<Uuid, (String, i64, i64)> = HashMap::new();
     n_problems.into_iter().for_each(|(id, name, count)| {
         scores_map.insert(id, (name, count, 0));
     });
@@ -160,14 +172,10 @@ async fn submit_solution(
     Json(solution): Json<SubmitSolution>,
 ) -> Result<(), (StatusCode, String)> {
     use schema::solutions::*;
+    let req_user_id = extract_user_id(&headers)?;
     let mut conn = establish_connection();
-    let user = headers
-        .get("user_sub")
-        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
-        .to_str()
-        .map_err(internal_error)?;
     diesel::insert_into(table)
-        .values((solution, user_id.eq(user.to_string())))
+        .values((solution, user_id.eq(req_user_id)))
         .execute(&mut conn)
         .map_err(internal_error)?;
     Ok(())
@@ -178,12 +186,8 @@ async fn create_problem(
     Json(new_problem): Json<NewProblem>,
 ) -> Result<Json<Problem>, (StatusCode, String)> {
     use schema::{modules, problem_topic, problems, solutions, topics};
+    let user_id = extract_user_id(&headers)?;
     let mut conn = establish_connection();
-    let user = headers
-        .get("user_sub")
-        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
-        .to_str()
-        .map_err(internal_error)?;
 
     let module_id = match new_problem.module {
         AddModule::Existing(id) => id,
@@ -203,7 +207,7 @@ async fn create_problem(
     };
 
     let result = diesel::insert_into(problems::table)
-        .values((&new_problem.problem, problems::user_id.eq(user.to_string())))
+        .values((&new_problem.problem, problems::user_id.eq(user_id)))
         .returning(Problem::as_returning())
         .get_result(&mut conn)
         .map_err(internal_error)?;
@@ -213,7 +217,7 @@ async fn create_problem(
             .values((
                 solutions::body.eq(soln),
                 solutions::problem_id.eq(result.id),
-                solutions::user_id.eq(user.to_string()),
+                solutions::user_id.eq(user_id),
             ))
             .execute(&mut conn)
             .map_err(internal_error)?;
@@ -244,13 +248,8 @@ async fn solve_problem(
     }): Json<SolveProblem>,
 ) -> Result<(), (StatusCode, String)> {
     use schema::user_problem;
+    let user_id = extract_user_id(&headers)?;
     let mut conn = establish_connection();
-    let user_id = headers
-        .get("user_sub")
-        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
-        .to_str()
-        .map_err(internal_error)?
-        .to_string();
     diesel::insert_into(user_problem::table)
         .values(UserProblem {
             user_id,
@@ -287,11 +286,7 @@ async fn request_problem(
 ) -> Result<Json<ProblemResponse>, (StatusCode, String)> {
     use schema::{problem_topic, problems, solutions, topics, user_problem, users};
     let mut conn = establish_connection();
-    let user = &headers
-        .get("user_sub")
-        .ok_or((StatusCode::UNAUTHORIZED, "No user".to_string()))?
-        .to_str()
-        .map_err(internal_error)?;
+    let user_id = extract_user_id(&headers)?;
 
     let selected_topics: Vec<Topic> = match request.topic_ids.len() {
         0 => topics::table.load(&mut conn),
@@ -303,7 +298,7 @@ async fn request_problem(
     let mut valid_problems: Vec<(i32, (Option<NaiveDateTime>, Option<bool>), Problem)> =
         ProblemTopic::belonging_to(&selected_topics)
             .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
-            .filter(users::id.eq(user).or(users::id.is_null()))
+            .filter(users::id.eq(user_id).or(users::id.is_null()))
             //.distinct_on(problems::id)
             .select((
                 problem_topic::topic_id,
@@ -356,7 +351,7 @@ async fn request_problem(
 
     let n_incorrect: Vec<(i32, i64)> = ProblemTopic::belonging_to(&selected_topics)
         .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
-        .filter(users::id.eq(user))
+        .filter(users::id.eq(user_id))
         .filter(diesel::dsl::not(user_problem::successful))
         .group_by(problem_topic::topic_id)
         .select((problem_topic::topic_id, diesel::dsl::count(problems::id)))
@@ -364,7 +359,7 @@ async fn request_problem(
         .map_err(internal_error)?;
     let n_total: Vec<(i32, i64)> = ProblemTopic::belonging_to(&selected_topics)
         .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
-        .filter(users::id.eq(user))
+        .filter(users::id.eq(user_id))
         .group_by(problem_topic::topic_id)
         .select((problem_topic::topic_id, diesel::dsl::count(problems::id)))
         .load(&mut conn)
@@ -393,7 +388,7 @@ async fn request_problem(
     let next_problem = loop {
         let next_topic = request.topic_ids[dist.sample(&mut rng)];
         if let Some(problem) = topic_problems_map.get_mut(&next_topic).and_then(|topic| {
-            (topic.len() != 0).then(|| {
+            (!topic.is_empty()).then(|| {
                 let next_problem_idx: usize = rng.gen_range(0..topic.len());
                 topic.swap_remove(next_problem_idx)
             })
