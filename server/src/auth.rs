@@ -114,7 +114,7 @@ pub async fn register(
         ))
         .execute(&mut conn)
         .map_err(internal_error)?;
-    todo!()
+    Ok(())
 }
 
 #[derive(Deserialize)]

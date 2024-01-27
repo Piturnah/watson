@@ -5,11 +5,17 @@
   import { get } from "svelte/store";
   import { selected_topic_ids } from "$lib/stores";
   import { onMount } from "svelte";
+  import { PUBLIC_WATSON_MEDIA_BASE } from "$env/static/public";
 
   let showSoln = false;
 
-  let problem: { id: number; body: string; solnlink: string } = { id: -1, body: "", solnlink: "" };
-  let soln = "";
+  let problem: { id: number; body: string | null; solnlink: string; img_path: string | null } = {
+    id: -1,
+    body: "",
+    solnlink: "",
+  };
+  let soln: string | null = null;
+  let soln_img: string | null = null;
 
   let noProblem = false;
   function getProblem() {
@@ -21,6 +27,7 @@
         else {
           problem = data.problem;
           soln = data.solution;
+          soln_img = data.solution_img;
           submitSoln = "";
         }
       })
@@ -40,22 +47,47 @@
   function handleSolnSubmit() {
     if (problem.id === -1) return;
     axios
-      .post("/solutions", { problem_id: problem.id, body: submitSoln })
+      .post("/solutions", { problem_id: problem.id, body: submitSoln, img_path: solnImg })
       .then(() => {
         soln = submitSoln;
         submitSoln = "";
       })
       .catch((err) => console.warn(err));
   }
+
+  let solnImg: string | null = null;
+  const onloadSolution = (el) => {
+    el.addEventListener("paste", (ev) => {
+      const imgData = ev.clipboardData.files[0];
+      if (imgData !== undefined && imgData.type.startsWith("image/")) {
+        axios
+          .post(
+            "/upload",
+            { file: imgData },
+            { headers: { "content-type": "multipart/form-data" } },
+          )
+          .then((res) => (solnImg = res.data))
+          .catch((e) => console.log(e));
+      }
+    });
+  };
 </script>
 
 <div class="grid grid-cols-1 p-12 w-[959px] m-auto gap-6">
   {#if !noProblem}
     <Box>
-      <TexBox content={`${problem.id}. ` + problem.body} />
+      {#if problem.img_path !== null}
+        <img class="rounded-md" src={`${PUBLIC_WATSON_MEDIA_BASE}/${problem.img_path}`} />
+      {/if}
+      {#if problem.body !== null}
+        <TexBox content={`${problem.id}. ` + problem.body} />
+      {/if}
     </Box>
     {#if showSoln}
       <Box>
+        {#if soln_img !== null}
+          <img class="rounded-md" src={`${PUBLIC_WATSON_MEDIA_BASE}/${problem.soln_img}`} />
+        {/if}
         {#if soln !== null}
           <TexBox content={soln} />
         {:else}
@@ -68,13 +100,20 @@
               >
             </p>
           {/if}
-          <p>If you know the answer, you can submit the solution below:</p>
+          <p>
+            If you know the answer, you can submit the solution below:
+            <span class="text-xs">(you may also paste an image)</span>
+          </p>
           <textarea
+            use:onloadSolution
             bind:value={submitSoln}
             class="h-56 w-full p-1 font-mono bg-midnight text-white"
           />
           {#if submitSoln !== ""}
             <TexBox content={submitSoln} />
+          {/if}
+          {#if solnImg !== null}
+            <img class="rounded-md" src={`${PUBLIC_WATSON_MEDIA_BASE}/${solnImg}`} />
           {/if}
         {/if}
       </Box>

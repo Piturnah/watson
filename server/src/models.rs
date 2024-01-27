@@ -22,12 +22,13 @@ pub struct AccessToken {
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Problem {
     pub id: i32,
-    pub body: String,
+    pub body: Option<String>,
     pub author: Option<String>,
     pub source: Option<String>,
     pub solnlink: Option<String>,
     pub submitted_at: NaiveDateTime,
     pub user_id: Option<Uuid>,
+    pub img_path: Option<String>,
 }
 
 #[derive(
@@ -40,9 +41,10 @@ pub struct Problem {
 pub struct Solution {
     pub id: i32,
     pub problem_id: i32,
-    pub body: String,
+    pub body: Option<String>,
     pub submitted_at: NaiveDateTime,
     pub user_id: Option<Uuid>,
+    pub img_path: Option<String>,
 }
 
 #[derive(Identifiable, Queryable, Selectable, Associations, Debug)]
@@ -100,6 +102,7 @@ pub struct NewProblem {
     pub module: AddModule,
     pub topic: AddTopic,
     pub soln: Option<String>,
+    pub soln_img: Option<String>,
     #[serde(flatten)]
     pub problem: InsertProblem,
 }
@@ -107,10 +110,11 @@ pub struct NewProblem {
 #[derive(Insertable, Deserialize)]
 #[diesel(table_name = problems)]
 pub struct InsertProblem {
-    pub body: String,
+    pub body: Option<String>,
     pub author: Option<String>,
     pub source: Option<String>,
     pub solnlink: Option<String>,
+    pub img_path: Option<String>,
 }
 
 #[derive(Insertable)]

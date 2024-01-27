@@ -80,6 +80,7 @@
       <a href="/review" class="btn btn-white">Review</a>
       <a href="/add" class="btn btn-white">Add problems</a>
     </Box>
+    <p class="text-xs mt-1">Watson client v{PKG.version}</p>
   </div>
   <div class="bg-coal border border-dust p-6 mr-10 h-full">
     <h1 class="text-lg font-bold mb-5">Contributions Leaderboard</h1>

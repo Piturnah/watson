@@ -2,10 +2,17 @@ mod auth;
 mod models;
 mod schema;
 
-use std::{cmp::Ordering, collections::HashMap, env, error::Error, net::SocketAddr, sync::Arc};
+use std::{
+    cmp::Ordering, collections::HashMap, env, error::Error, fs, net::SocketAddr, path::PathBuf,
+    sync::Arc,
+};
 
 use axum::{
-    http::{HeaderMap, StatusCode},
+    extract::Multipart,
+    http::{
+        header::{AUTHORIZATION, CONTENT_TYPE},
+        HeaderMap, StatusCode,
+    },
     middleware,
     response::Json,
     routing::{get, post, put},
@@ -70,6 +77,7 @@ async fn main() {
         .route("/solutions", post(submit_solution))
         .route("/modules", get(get_modules))
         .route("/leaderboard", get(get_leaderboard))
+        .route("/upload", post(upload))
         .route_layer(middleware::from_fn_with_state(
             Arc::clone(&sessions),
             auth::auth,
@@ -79,7 +87,7 @@ async fn main() {
         .layer(
             CorsLayer::new()
                 .allow_methods(Any)
-                .allow_headers(Any)
+                .allow_headers([CONTENT_TYPE, AUTHORIZATION])
                 .allow_origin(origins),
         )
         .with_state(sessions);
@@ -87,6 +95,28 @@ async fn main() {
     println!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+/// Endpoint to upload a file (image) which is then stored on the server.
+async fn upload(mut multipart: Multipart) -> Result<String, (StatusCode, String)> {
+    // For now, you can only upload one file at a time.
+    let Some(field) = multipart.next_field().await.map_err(internal_error)? else {
+        return Err((StatusCode::BAD_REQUEST, "No file uploaded.".to_string()));
+    };
+
+    let name = Uuid::new_v4().to_string() + field.file_name().unwrap_or("");
+    let data = field.bytes().await.map_err(internal_error)?;
+
+    let store_path: PathBuf = [
+        env::var("MEDIA_PATH").expect("MEDIA_PATH must be set"),
+        name.clone(),
+    ]
+    .iter()
+    .collect();
+
+    fs::write(store_path.clone(), data).map_err(internal_error)?;
+
+    Ok(name)
 }
 
 async fn get_modules() -> Result<Json<ModulesView>, (StatusCode, String)> {
@@ -164,7 +194,8 @@ async fn get_leaderboard() -> Result<Json<Vec<LeaderboardEntry>>, (StatusCode, S
 #[diesel(table_name = schema::solutions)]
 struct SubmitSolution {
     problem_id: i32,
-    body: String,
+    body: Option<String>,
+    img_path: Option<String>,
 }
 
 async fn submit_solution(
@@ -189,6 +220,8 @@ async fn create_problem(
     let user_id = extract_user_id(&headers)?;
     let mut conn = establish_connection();
 
+    assert!(new_problem.problem.body.is_some() || new_problem.problem.img_path.is_some());
+
     let module_id = match new_problem.module {
         AddModule::Existing(id) => id,
         AddModule::New(title) => diesel::insert_into(modules::table)
@@ -212,10 +245,11 @@ async fn create_problem(
         .get_result(&mut conn)
         .map_err(internal_error)?;
 
-    if let Some(soln) = new_problem.soln {
+    if new_problem.soln.is_some() || new_problem.soln_img.is_some() {
         diesel::insert_into(solutions::table)
             .values((
-                solutions::body.eq(soln),
+                solutions::body.eq(new_problem.soln),
+                solutions::img_path.eq(new_problem.soln_img),
                 solutions::problem_id.eq(result.id),
                 solutions::user_id.eq(user_id),
             ))
@@ -278,6 +312,7 @@ struct ProblemRequest {
 struct ProblemResponse {
     problem: Option<Problem>,
     solution: Option<String>,
+    solution_img: Option<String>,
 }
 
 async fn request_problem(
@@ -299,7 +334,6 @@ async fn request_problem(
         ProblemTopic::belonging_to(&selected_topics)
             .inner_join(problems::table.left_join(user_problem::table.inner_join(users::table)))
             .filter(users::id.eq(user_id).or(users::id.is_null()))
-            //.distinct_on(problems::id)
             .select((
                 problem_topic::topic_id,
                 (
@@ -405,16 +439,20 @@ async fn request_problem(
         }
     };
 
-    let solution: Option<String> = next_problem.as_ref().and_then(|problem| {
-        Solution::belonging_to(problem)
-            .select(solutions::body)
-            .first(&mut conn)
-            .ok()
-    });
+    let (solution, solution_img): (Option<String>, Option<String>) = next_problem
+        .as_ref()
+        .and_then(|problem| {
+            Solution::belonging_to(problem)
+                .select((solutions::body.nullable(), solutions::img_path.nullable()))
+                .first(&mut conn)
+                .ok()
+        })
+        .unwrap_or((None, None));
 
     Ok(Json(ProblemResponse {
         problem: next_problem,
         solution,
+        solution_img,
     }))
 }
 

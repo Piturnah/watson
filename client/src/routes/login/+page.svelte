@@ -2,7 +2,6 @@
   import Box from "$lib/Box.svelte";
   import { axios } from "$lib";
   import { goto } from "$app/navigation";
-  import { PUBLIC_WATSON_CLIENT_ID } from "$env/static/public";
   const urlParams = new URLSearchParams(window.location.search);
   const redirect = urlParams.get("to");
 

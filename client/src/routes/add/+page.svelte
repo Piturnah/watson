@@ -3,6 +3,7 @@
   import { axios, exampleProblem } from "$lib";
   import TexBox from "$lib/TexBox.svelte";
   import Box from "$lib/Box.svelte";
+  import { PUBLIC_WATSON_MEDIA_BASE } from "$env/static/public";
   let { body, soln } = exampleProblem;
   let source = "";
   let author = "";
@@ -35,7 +36,8 @@
     errors = [];
     if (selectedModule < -1) errors = ["Please select a module", ...errors];
     if (selectedTopic < -1) errors = ["Please select a topic", ...errors];
-    if (body.replaceAll(/\s+/g, "") === "") errors = ["Please enter a problem", ...errors];
+    if (problemImg === null && body.replaceAll(/\s+/g, "") === "")
+      errors = ["Please enter a problem", ...errors];
     if (errors.length > 0) return;
 
     waiting = true;
@@ -45,13 +47,17 @@
         author,
         body,
         soln: soln.replaceAll(/\s+/g, "") === "" ? null : soln,
+        soln_img: solnImg,
         solnlink: solnLink,
+        img_path: problemImg,
         module: selectedModule === -1 ? newModule : selectedModule,
         topic: selectedTopic === -1 ? newTopic : selectedTopic,
       })
       .then(() => {
         body = "";
         soln = "";
+        problemImg = null;
+        solnImg = null;
         if (selectedModule === -1) selectedModule = -2;
         if (selectedTopic === -1) selectedTopic = -2;
         waiting = false;
@@ -61,6 +67,39 @@
         waiting = false;
       });
   }
+
+  // Srcs for images relative to the media base URL.
+  let problemImg: string | null = null;
+  let solnImg: string | null = null;
+
+  type ImgSrc = "problem" | "solution";
+
+  const uploadClipboardImg = (imgData, src: ImgSrc) => {
+    if (imgData !== undefined && imgData.type.startsWith("image/")) {
+      axios
+        .post("/upload", { file: imgData }, { headers: { "content-type": "multipart/form-data" } })
+        .then((res) => {
+          if (src === "problem") {
+            problemImg = res.data;
+          } else {
+            solnImg = res.data;
+          }
+        })
+        .catch((e) => console.log(e));
+    }
+  };
+
+  const onloadProblem = (el) => {
+    el.addEventListener("paste", (ev) => {
+      uploadClipboardImg(ev.clipboardData.files[0], "problem");
+    });
+  };
+
+  const onloadSolution = (el) => {
+    el.addEventListener("paste", (ev) => {
+      uploadClipboardImg(ev.clipboardData.files[0], "solution");
+    });
+  };
 </script>
 
 <form class="flex flex-col items-center p-12">
@@ -100,14 +139,28 @@
         class="p-2 w-full bg-midnight text-white"
       />
       <div>
-        <label class="block text-white">Problem statement</label>
-        <textarea bind:value={body} class="h-36 w-full p-1 font-mono bg-midnight text-white" />
+        <label class="block text-white">
+          Problem statement
+          <span class="text-xs">(you may also paste an image)</span>
+        </label>
+        <textarea
+          use:onloadProblem
+          bind:value={body}
+          class="h-36 w-full p-1 font-mono bg-midnight text-white"
+        />
       </div>
       <div>
-        <label class="block text-white">Solution</label>
-        <textarea bind:value={soln} class="h-56 w-full p-1 font-mono bg-midnight text-white" />
+        <label class="block text-white">
+          Solution
+          <span class="text-xs">(you may also paste an image)</span>
+        </label>
+        <textarea
+          use:onloadSolution
+          bind:value={soln}
+          class="h-56 w-full p-1 font-mono bg-midnight text-white"
+        />
       </div>
-      {#if soln === ""}
+      {#if soln === "" && solnImg === null}
         <div>
           <label class="block text-white"
             >Where can the solution be found? (e.g. URL or textbook)</label
@@ -122,8 +175,14 @@
       </div>
     </div>
     <Box>
+      {#if problemImg !== null}
+        <img class="rounded-md" src={`${PUBLIC_WATSON_MEDIA_BASE}/${problemImg}`} />
+      {/if}
       {#if body !== ""}
         <TexBox content={body} />
+      {/if}
+      {#if solnImg !== null}
+        <img class="rounded-md" src={`${PUBLIC_WATSON_MEDIA_BASE}/${solnImg}`} />
       {/if}
       {#if soln !== ""}
         <TexBox content={soln} />

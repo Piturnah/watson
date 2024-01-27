@@ -25,12 +25,13 @@ diesel::table! {
 diesel::table! {
     problems (id) {
         id -> Int4,
-        body -> Text,
+        body -> Nullable<Text>,
         author -> Nullable<Varchar>,
         source -> Nullable<Varchar>,
         solnlink -> Nullable<Varchar>,
         submitted_at -> Timestamp,
         user_id -> Nullable<Uuid>,
+        img_path -> Nullable<Varchar>,
     }
 }
 
@@ -38,10 +39,11 @@ diesel::table! {
     solutions (id) {
         id -> Int4,
         problem_id -> Int4,
-        body -> Text,
+        body -> Nullable<Text>,
         author -> Nullable<Varchar>,
         submitted_at -> Timestamp,
         user_id -> Nullable<Uuid>,
+        img_path -> Nullable<Varchar>,
     }
 }
 

@@ -1,0 +1,5 @@
+ALTER TABLE problems ALTER COLUMN body SET NOT NULL;
+ALTER TABLE solutions ALTER COLUMN body SET NOT NULL;
+
+ALTER TABLE problems DROP COLUMN img_path;
+ALTER TABLE solutions DROP COLUMN img_path;
