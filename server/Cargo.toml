@@ -14,7 +14,7 @@ dotenv = ["dep:dotenvy"]
 [dependencies]
 argon2 = "0.5.3"
 axum = { version = "0.7.2", features = ["multipart"] }
-chrono = { version = "0.4.31", features = ["serde"] }
+chrono = { version = "0.4.33", features = ["serde"] }
 diesel = { version = "2.1.0", features = ["postgres", "chrono", "uuid"] }
 diesel_migrations = "2.1.0"
 dotenvy = { version = "0.15.7", optional = true }
