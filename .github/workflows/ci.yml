@@ -10,7 +10,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  Test (server):
+  Test_server:
+    env:
+      working-directory: ./server
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -20,11 +22,12 @@ jobs:
         toolchain: stable
         profile: minimal
         override: true
-    - run: cd server
     - name: Test
       run: cargo test
 
-  Lint (server):
+  Lint_server:
+    env:
+      working-directory: ./server
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -35,33 +38,34 @@ jobs:
         profile: minimal
         components: clippy, rustfmt
         override: true
-    - run: cd server
     - name: Clippy
       run: cargo clippy -- -D warnings
     - name: Format
       run: cargo fmt --check
 
-  Build (client):
+  Build_client:
+    env:
+      working-directory: ./client
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-node@v3
       with:
         node-version: '20.x'
-    - run: cd client
     - name: Install dependencies
       run: npm install
     - name: Build
       run: npm run build
 
-  Lint (client):
+  Lint_client:
+    env:
+      working-directory: ./client
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-node@v3
       with:
         node-version: '20.x'
-    - run: cd client
     - name: Install dependencies
       run: npm install
     - name: Lint
